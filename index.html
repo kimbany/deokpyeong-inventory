@@ -444,7 +444,19 @@ let cfg={expMonths:6,lowStock:100,colBc:'C',colIc:'D',colQty:'CI',colExp:'BQ',co
   window.renderDeletePreview=renderDeletePreview;
 
   // ── 이벤트 직접 바인딩 (module scope 안전) ──
-  document.getElementById('file-input').addEventListener('change', e=>{const f=e.target.files[0];if(f)readFile(f);});
+  const fileInput = document.getElementById('file-input');
+  console.log('[INIT] file-input element:', fileInput);
+  if(fileInput){
+    fileInput.addEventListener('change', e=>{
+      console.log('[file-input] change event fired, files:', e.target.files.length);
+      const f=e.target.files[0];
+      if(f) readFile(f);
+    });
+    window._fileInput = fileInput;
+    console.log('[INIT] file-input listener attached');
+  } else {
+    console.error('[INIT] file-input NOT FOUND!');
+  }
   document.getElementById('upload-zone').addEventListener('dragover', e=>{e.preventDefault();document.getElementById('upload-zone').classList.add('dragover');});
   document.getElementById('upload-zone').addEventListener('dragleave', ()=>document.getElementById('upload-zone').classList.remove('dragover'));
   document.getElementById('upload-zone').addEventListener('drop', e=>{e.preventDefault();document.getElementById('upload-zone').classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)readFile(f);});
@@ -573,6 +585,10 @@ function parseCSV(text){
 }
 
 function cellsToRows(cells){
+  window._lastCells = cells;
+  // 디버그: 처음 20개 셀 출력
+  const sample=[...cells.entries()].slice(0,20);
+  console.log('[cellsToRows] total cells:', cells.size, 'sample:', sample);
   const cBc=colIdx(cfg.colBc),cIc=colIdx(cfg.colIc),cQty=colIdx(cfg.colQty),cExp=colIdx(cfg.colExp),cFb1=colIdx('BZ'),cFb2=colIdx('CA'),cNote=colIdx(cfg.colNote);
   let maxR=0;for(const k of cells.keys()){const r=parseInt(k);if(r>maxR)maxR=r;}
   // 데이터 시작 행 자동 탐지: 바코드 컬럼에 값이 있는 첫 행 찾기 (헤더 제외)
@@ -582,6 +598,9 @@ function cellsToRows(cells){
     const v=String(cells.get(`${r},${cBc}`)??'').trim();
     if(v&&!HEADER_VALS.has(v.toLowerCase())&&v.length>=4){startR=r;break;}
   }
+  console.log('[cellsToRows] startR:', startR, 'maxR:', maxR, 'cBc:', cBc);
+  // Show first 5 rows at cBc column
+  for(let r=startR;r<=Math.min(startR+5,maxR);r++) console.log(`  row${r} bc:`, cells.get(`${r},${cBc}`));
   const rows=[];
   for(let r=startR;r<=maxR;r++){
     const bc=String(cells.get(`${r},${cBc}`)??'').trim();
