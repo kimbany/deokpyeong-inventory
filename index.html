@@ -432,10 +432,15 @@ let cfg={expMonths:6,lowStock:100,colBc:'C',colIc:'D',colQty:'CI',colExp:'BQ',co
 // ── INIT ──
 (async()=>{
   // expose all public functions to window for onclick handlers
-  ['nav','runUpload','deleteDate','renderIssues','renderExpiry','renderClosed','renderHistory',
-   'renderStock','saveSettings','exportCSV','clearAll','clearHistFilter','saveNote',
-   'closeExpiry','restoreExpiry','setAction','onFileSelect','doDragOver','doDragLeave','doDrop',
-   'renderDeletePreview'].forEach(fn=>window[fn]=eval(fn));
+  // module scope → window 직접 할당
+  window.nav=nav; window.runUpload=runUpload; window.deleteDate=deleteDate;
+  window.renderIssues=renderIssues; window.renderExpiry=renderExpiry; window.renderClosed=renderClosed;
+  window.renderHistory=renderHistory; window.renderStock=renderStock; window.saveSettings=saveSettings;
+  window.exportCSV=exportCSV; window.clearAll=clearAll; window.clearHistFilter=clearHistFilter;
+  window.saveNote=saveNote; window.closeExpiry=closeExpiry; window.restoreExpiry=restoreExpiry;
+  window.setAction=setAction; window.onFileSelect=onFileSelect;
+  window.doDragOver=doDragOver; window.doDragLeave=doDragLeave; window.doDrop=doDrop;
+  window.renderDeletePreview=renderDeletePreview;
 
   showLoad('Firebase 연결 중...');
   try{
@@ -681,7 +686,6 @@ function renderAll(){renderIssues();renderExpiry();renderClosed();renderHistory(
 
 // ── RENDER: ISSUES ──
 function renderIssues(){
-  console.log('[renderIssues] C.issues keys:', Object.keys(C.issues||{}), 'curRows:', curRows.length, 'latestDate:', latestDate);
   const search=(document.getElementById('issue-search')?.value||'').toLowerCase();
   const typeF=document.getElementById('issue-type-f')?.value||'';
   const actF=document.getElementById('issue-act-f')?.value||'';
