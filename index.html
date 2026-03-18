@@ -585,7 +585,17 @@ function parseCSV(text){
 }
 
 function cellsToRows(cells){
+  window._lastSST = sst;
   window._lastCells = cells;
+  console.log('[parseXLS] SST first 10:', sst.slice(0,10));
+  console.log('[parseXLS] cells size:', cells.size);
+  // Find barcode-like values in cells
+  const sample = [];
+  for(const [k,v] of cells){
+    if(typeof v==='string'&&v.length>6&&/\d{6,}/.test(v)) sample.push(k+': '+v);
+    if(sample.length>=5) break;
+  }
+  console.log('[parseXLS] barcode-like cells:', sample);
   // 디버그: 처음 20개 셀 출력
   const sample=[...cells.entries()].slice(0,20);
   console.log('[cellsToRows] total cells:', cells.size, 'sample:', sample);
