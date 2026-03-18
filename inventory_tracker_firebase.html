@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>덕평 재고 이슈 트래커</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0f0f10;
+  --bg2: #161618;
+  --bg3: #1d1d20;
+  --bg4: #242428;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --text: #e8e6e0;
+  --text2: #9c9a92;
+  --text3: #5a5856;
+  --accent: #c8f060;
+  --accent-dim: rgba(200,240,96,0.12);
+  --accent-dim2: rgba(200,240,96,0.06);
+  --red: #ff6b6b;
+  --red-dim: rgba(255,107,107,0.12);
+  --amber: #f0a040;
+  --amber-dim: rgba(240,160,64,0.12);
+  --blue: #60a8f0;
+  --blue-dim: rgba(96,168,240,0.12);
+  --green: #60d090;
+  --green-dim: rgba(96,208,144,0.12);
+  --purple: #b088f8;
+  --purple-dim: rgba(176,136,248,0.12);
+  --font: 'IBM Plex Sans KR', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+  --r: 8px;
+  --r-sm: 5px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; line-height: 1.6; min-height: 100vh; }
+
+/* ── Layout ── */
+.shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.sidebar { background: var(--bg2); border-right: 1px solid var(--border); padding: 0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.main { overflow: hidden; display: flex; flex-direction: column; }
+
+/* ── Sidebar ── */
+.logo { padding: 22px 20px 18px; border-bottom: 1px solid var(--border); }
+.logo-name { font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 0.04em; font-family: var(--mono); }
+.logo-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.nav { padding: 12px 10px; flex: 1; }
+.nav-section { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; color: var(--text3); text-transform: uppercase; padding: 8px 10px 4px; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer; color: var(--text2); font-size: 13px; transition: all .15s; margin-bottom: 1px; }
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active { background: var(--accent-dim); color: var(--accent); }
+.nav-item .icon { width: 16px; text-align: center; font-size: 14px; flex-shrink: 0; }
+.nav-item .badge { margin-left: auto; font-size: 10px; font-family: var(--mono); background: var(--bg4); color: var(--text3); padding: 1px 6px; border-radius: 10px; }
+.nav-item.active .badge { background: var(--accent-dim); color: var(--accent); }
+
+.sidebar-bottom { padding: 14px 10px; border-top: 1px solid var(--border); }
+.db-info { padding: 10px 12px; background: var(--bg3); border-radius: var(--r); border: 1px solid var(--border); }
+.db-info-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text3); padding: 2px 0; }
+.db-info-row span:last-child { color: var(--text2); font-family: var(--mono); }
+
+/* ── Top bar ── */
+.topbar { padding: 16px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; background: var(--bg); flex-shrink: 0; }
+.topbar-title { font-size: 15px; font-weight: 600; }
+.topbar-sub { font-size: 12px; color: var(--text3); margin-left: 2px; }
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--r-sm); font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); transition: all .15s; font-family: var(--font); white-space: nowrap; }
+.btn:hover { background: var(--bg4); border-color: var(--border2); }
+.btn-accent { background: var(--accent); color: #0f0f10; border-color: var(--accent); font-weight: 600; }
+.btn-accent:hover { opacity: .88; }
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: var(--red-dim); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+
+/* ── Content panels ── */
+.content { flex: 1; overflow-y: auto; padding: 24px 28px; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── Upload zone ── */
+.upload-zone { border: 1.5px dashed var(--border2); border-radius: var(--r); padding: 36px; text-align: center; cursor: pointer; transition: all .2s; position: relative; background: var(--bg2); }
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: var(--accent-dim2); }
+.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-icon { font-size: 28px; margin-bottom: 10px; }
+.upload-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.upload-sub { font-size: 12px; color: var(--text3); }
+
+.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+@media (max-width: 700px) { .upload-grid { grid-template-columns: 1fr; } .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+/* ── Metrics ── */
+.metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+.metric { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; }
+.metric-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; letter-spacing: 0.03em; }
+.metric-value { font-size: 22px; font-weight: 600; font-family: var(--mono); line-height: 1; }
+.metric-delta { font-size: 11px; color: var(--text3); margin-top: 4px; font-family: var(--mono); }
+.m-green .metric-value { color: var(--green); }
+.m-red .metric-value { color: var(--red); }
+.m-amber .metric-value { color: var(--amber); }
+.m-blue .metric-value { color: var(--blue); }
+.m-purple .metric-value { color: var(--purple); }
+
+/* ── Table ── */
+.tbl-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; overflow-x: auto; }
+.tbl-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap; }
+.tbl-title { font-size: 13px; font-weight: 500; }
+.tbl-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+table { width: 100%; border-collapse: collapse; min-width: 600px; }
+thead tr { background: var(--bg3); }
+th { text-align: left; padding: 9px 14px; font-size: 11px; font-weight: 500; color: var(--text3); white-space: nowrap; border-bottom: 1px solid var(--border); letter-spacing: 0.04em; text-transform: uppercase; }
+td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tbody tr { transition: background .1s; }
+tbody tr:hover td { background: var(--bg3); }
+.td-mono { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+
+/* ── Tags / Pills ── */
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+.tag-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,107,107,0.2); }
+.tag-amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(240,160,64,0.2); }
+.tag-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(96,208,144,0.2); }
+.tag-blue { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(96,168,240,0.2); }
+.tag-purple { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(176,136,248,0.2); }
+.tag-gray { background: var(--bg4); color: var(--text2); border: 1px solid var(--border2); }
+
+/* ── Inputs ── */
+input[type=text], input[type=date], input[type=number], select {
+  background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--r-sm);
+  padding: 7px 11px; font-size: 12px; color: var(--text); outline: none; font-family: var(--font);
+  transition: border-color .15s;
+}
+input[type=text]:focus, input[type=date]:focus, input[type=number]:focus, select:focus {
+  border-color: var(--accent);
+}
+input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+
+/* ── Alert cards ── */
+.alert-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.alert-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-radius: var(--r); border: 1px solid; }
+.alert-card.red { background: var(--red-dim); border-color: rgba(255,107,107,0.25); }
+.alert-card.amber { background: var(--amber-dim); border-color: rgba(240,160,64,0.25); }
+.alert-card.green { background: var(--green-dim); border-color: rgba(96,208,144,0.25); }
+.alert-card.blue { background: var(--blue-dim); border-color: rgba(96,168,240,0.25); }
+.alert-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.alert-title { font-size: 13px; font-weight: 600; }
+.alert-body { font-size: 11px; color: var(--text2); margin-top: 2px; line-height: 1.5; }
+
+/* ── Section header ── */
+.section-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.section-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.section-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* ── Empty state ── */
+.empty { text-align: center; padding: 56px 20px; color: var(--text3); }
+.empty-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.5; }
+.empty-title { font-size: 14px; color: var(--text2); font-weight: 500; margin-bottom: 4px; }
+
+/* ── Progress bar ── */
+.prog-wrap { display: flex; align-items: center; gap: 8px; }
+.prog { flex: 1; height: 4px; border-radius: 2px; background: var(--bg4); overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.prog-label { font-family: var(--mono); font-size: 10px; color: var(--text3); min-width: 32px; text-align: right; }
+
+/* ── Toast ── */
+#toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--r); padding: 12px 18px; font-size: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); z-index: 999; opacity: 0; transform: translateY(8px); transition: all .25s; max-width: 320px; pointer-events: none; }
+#toast.show { opacity: 1; transform: translateY(0); }
+#toast.success { border-color: rgba(96,208,144,0.3); color: var(--green); }
+#toast.error { border-color: rgba(255,107,107,0.3); color: var(--red); }
+
+/* ── Loading overlay ── */
+#loading { position: fixed; inset: 0; background: rgba(15,15,16,0.85); display: none; align-items: center; justify-content: center; z-index: 998; flex-direction: column; gap: 12px; }
+#loading.show { display: flex; }
+.loading-spinner { width: 32px; height: 32px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 13px; color: var(--text2); }
+
+/* ── State badge ── */
+.state-indicator { display: inline-flex; align-items: center; gap: 5px; }
+.state-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.state-dot.red { background: var(--red); box-shadow: 0 0 6px var(--red); animation: pulse-r .9s ease-in-out infinite; }
+.state-dot.amber { background: var(--amber); }
+.state-dot.green { background: var(--green); }
+@keyframes pulse-r { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── Compare diff ── */
+.diff-up { color: var(--blue); font-family: var(--mono); font-size: 11px; }
+.diff-down { color: var(--red); font-family: var(--mono); font-size: 11px; }
+.diff-new { color: var(--accent); font-family: var(--mono); font-size: 11px; }
+
+/* ── Date picker row ── */
+.date-filter-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.date-filter-row label { font-size: 12px; color: var(--text3); }
+
+/* ── Card grid ── */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 16px; }
+.card-title { font-size: 12px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.card-stat { font-size: 24px; font-weight: 600; font-family: var(--mono); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+/* ── Divider ── */
+.divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+.gap-8 { display: flex; flex-direction: column; gap: 8px; }
+.flex-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ml-auto { margin-left: auto; }
+.text-mono { font-family: var(--mono); font-size: 11px; }
+.text-muted { color: var(--text3); }
+
+/* status bar */
+.status-bar { font-size: 11px; color: var(--text3); padding: 8px 28px; border-top: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; display: flex; gap: 16px; align-items: center; }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="loading-spinner"></div><div class="loading-text" id="loading-text">파일 분석 중...</div></div>
+<div id="toast"></div>
+
+<div class="shell">
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-name">DEOKPYEONG WMS</div>
+      <div class="logo-sub">재고 이슈 트래커</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">메인</div>
+      <div class="nav-item active" onclick="gotoPanel('upload',this)">
+        <span class="icon">📤</span> 파일 업로드
+      </div>
+      <div class="nav-item" onclick="gotoPanel('today',this)">
+        <span class="icon">📊</span> 오늘 현황
+        <span class="badge" id="nb-today">0</span>
+      </div>
+      <div class="nav-section">이슈 관리</div>
+      <div class="nav-item" onclick="gotoPanel('issues',this)">
+        <span class="icon">⚠️</span> 이슈 현황
+        <span class="badge" id="nb-issues">0</span>
+      </div>
+      <div class="nav-item" onclick="gotoPanel('history',this)">
+        <span class="icon">🗂</span> 이슈 히스토리
+      </div>
+      <div class="nav-section">데이터</div>
+      <div class="nav-item" onclick="gotoPanel('inventory',this)">
+        <span class="icon">📦</span> 전체 재고
+        <span class="badge" id="nb-inv">0</span>
+      </div>
+      <div class="nav-item" onclick="gotoPanel('settings',this)">
+        <span class="icon">⚙️</span> 설정
+      </div>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="db-info">
+        <div class="db-info-row"><span>저장된 날짜</span><span id="db-days">0일</span></div>
+        <div class="db-info-row"><span>총 이슈</span><span id="db-issues">0건</span></div>
+        <div class="db-info-row"><span>마지막 업로드</span><span id="db-last">—</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <span class="topbar-title" id="topbar-title">파일 업로드</span>
+        <span class="topbar-sub" id="topbar-sub"></span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-sm" onclick="exportCSV()">⬇ CSV 내보내기</button>
+        <button class="btn btn-sm btn-danger" onclick="clearDB()">🗑 DB 초기화</button>
+      </div>
+    </div>
+
+    <div class="content" id="content">
+
+      <!-- ════ UPLOAD ════ -->
+      <div class="panel active" id="panel-upload">
+        <div class="upload-grid">
+          <div>
+            <div class="section-hd"><div><div class="section-title">📄 오늘 파일 (최신)</div><div class="section-sub">분석 기준 파일</div></div></div>
+            <div class="upload-zone" id="zone-today" ondragover="dov(event,'zone-today')" ondragleave="dol('zone-today')" ondrop="dop(event,'today')">
+              <input type="file" accept=".xls,.xlsx,.csv" onchange="loadFile(event,'today')">
+              <div class="upload-icon">📄</div>
+              <div class="upload-title">오늘 재고 파일 업로드</div>
+              <div class="upload-sub">.xls / .xlsx / .csv 드래그 또는 클릭</div>
+              <div id="today-status" style="margin-top:10px;font-size:11px;color:var(--text3)"></div>
+            </div>
+          </div>
+          <div>
+            <div class="section-hd"><div><div class="section-title">📁 어제 파일 (비교용)</div><div class="section-sub">변동사항 감지에 사용 (선택)</div></div></div>
+            <div class="upload-zone" id="zone-yest" ondragover="dov(event,'zone-yest')" ondragleave="dol('zone-yest')" ondrop="dop(event,'yest')">
+              <input type="file" accept=".xls,.xlsx,.csv" onchange="loadFile(event,'yest')">
+              <div class="upload-icon">📁</div>
+              <div class="upload-title">어제 재고 파일 업로드</div>
+              <div class="upload-sub">.xls / .xlsx / .csv 드래그 또는 클릭</div>
+              <div id="yest-status" style="margin-top:10px;font-size:11px;color:var(--text3)"></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);">
+          <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text2)">📌 컬럼 설정</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+            <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">원바코드 열 (기본: C)</div>
+              <input type="text" id="cfg-barcode" value="C" style="width:100%"></div>
+            <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">아이템코드 열 (기본: D)</div>
+              <input type="text" id="cfg-itemcode" value="D" style="width:100%"></div>
+            <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">재고수량 열 (기본: CI)</div>
+              <input type="text" id="cfg-qty" value="CI" style="width:100%"></div>
+            <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">유통기한 열 (기본: BQ)</div>
+              <input type="text" id="cfg-exp" value="BQ" style="width:100%"></div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--text3)">💡 헤더행: 4번 (데이터는 6행부터 시작). BQ열 기준, 값이 없으면 BZ·CA열도 자동 보조로 읽습니다.</div>
+        </div>
+
+        <div style="text-align:center;padding:10px 0;">
+          <button class="btn btn-accent" onclick="runAnalysis()" style="padding:10px 32px;font-size:13px;">
+            🔍 분석 실행
+          </button>
+        </div>
+      </div>
+
+      <!-- ════ TODAY ════ -->
+      <div class="panel" id="panel-today">
+        <div class="metrics" id="metrics-row">
+          <div class="metric m-blue"><div class="metric-label">전체 상품</div><div class="metric-value" id="m-total">—</div><div class="metric-delta" id="m-total-d"></div></div>
+          <div class="metric m-green"><div class="metric-label">신규 상품</div><div class="metric-value" id="m-new">—</div><div class="metric-delta">오늘 추가</div></div>
+          <div class="metric m-amber"><div class="metric-label">유통기한 임박</div><div class="metric-value" id="m-expiry">—</div><div class="metric-delta">6개월 미만</div></div>
+          <div class="metric m-red"><div class="metric-label">재고 부족</div><div class="metric-value" id="m-low">—</div><div class="metric-delta">100개 이하</div></div>
+          <div class="metric m-purple"><div class="metric-label">아이템코드 변경</div><div class="metric-value" id="m-code-chg">—</div><div class="metric-delta">전일 대비</div></div>
+        </div>
+        <div id="today-alerts" class="alert-row"></div>
+        <div class="divider"></div>
+        <div class="section-hd"><div class="section-title">오늘 발생 이슈 요약</div></div>
+        <div id="today-issue-list"></div>
+      </div>
+
+      <!-- ════ ISSUES ════ -->
+      <div class="panel" id="panel-issues">
+        <div class="alert-row" id="active-state-alerts"></div>
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <span class="tbl-title">활성 이슈 (현재 상태)</span>
+            <div class="tbl-tools">
+              <input type="text" id="issue-search" placeholder="바코드 / 아이템코드 검색..." style="width:200px" oninput="renderActiveIssues()">
+              <select id="issue-type-filter" onchange="renderActiveIssues()">
+                <option value="">전체 유형</option>
+                <option value="재고부족">재고 부족</option>
+                <option value="유통기한임박">유통기한 임박</option>
+                <option value="아이템코드변경">아이템코드 변경</option>
+                <option value="신규상품">신규 상품</option>
+              </select>
+            </div>
+          </div>
+          <table><thead><tr>
+            <th>상태</th><th>원바코드</th><th>아이템코드</th><th>이슈 유형</th><th>상세</th><th>최초 발생</th><th>지속일수</th>
+          </tr></thead>
+          <tbody id="tbody-issues"></tbody></table>
+        </div>
+        <div class="empty" id="empty-issues" style="display:none">
+          <div class="empty-icon">✅</div><div class="empty-title">활성 이슈 없음</div>
+        </div>
+      </div>
+
+      <!-- ════ HISTORY ════ -->
+      <div class="panel" id="panel-history">
+        <div class="date-filter-row">
+          <label>날짜 선택:</label>
+          <input type="date" id="hist-date" onchange="renderHistory()">
+          <select id="hist-type" onchange="renderHistory()">
+            <option value="">전체 유형</option>
+            <option value="신규상품">신규 상품</option>
+            <option value="아이템코드변경">아이템코드 변경</option>
+            <option value="유통기한임박">유통기한 임박</option>
+            <option value="재고부족발생">재고 부족 발생</option>
+            <option value="재고부족유지">재고 부족 유지</option>
+            <option value="재고보충">재고 보충</option>
+          </select>
+          <button class="btn btn-sm" onclick="document.getElementById('hist-date').value='';renderHistory()">전체</button>
+          <span class="ml-auto text-mono text-muted" id="hist-count"></span>
+        </div>
+        <div class="tbl-wrap">
+          <table><thead><tr>
+            <th>날짜</th><th>원바코드</th><th>아이템코드</th><th>이슈 유형</th><th>상세 내용</th>
+          </tr></thead>
+          <tbody id="tbody-history"></tbody></table>
+        </div>
+        <div class="empty" id="empty-history" style="display:none">
+          <div class="empty-icon">🗂</div><div class="empty-title">해당 날짜의 이슈가 없습니다</div>
+        </div>
+      </div>
+
+      <!-- ════ INVENTORY ════ -->
+      <div class="panel" id="panel-inventory">
+        <div class="tbl-wrap">
+          <div class="tbl-header">
+            <span class="tbl-title">전체 재고 현황</span>
+            <div class="tbl-tools">
+              <input type="text" id="inv-search" placeholder="검색..." style="width:180px" oninput="renderInventory()">
+              <select id="inv-sort" onchange="renderInventory()">
+                <option value="barcode">바코드순</option>
+                <option value="qty_asc">재고 낮은순</option>
+                <option value="exp_asc">유통기한 빠른순</option>
+              </select>
+              <select id="inv-filter" onchange="renderInventory()">
+                <option value="">전체</option>
+                <option value="low">재고 부족</option>
+                <option value="expiring">유통기한 임박</option>
+              </select>
+            </div>
+          </div>
+          <table><thead><tr>
+            <th>원바코드</th><th>아이템코드</th><th>재고 수량</th><th>유통기한</th><th>남은 기간</th><th>상태</th>
+          </tr></thead>
+          <tbody id="tbody-inv"></tbody></table>
+        </div>
+        <div class="empty" id="empty-inv" style="display:none">
+          <div class="empty-icon">📦</div><div class="empty-title">재고 데이터가 없습니다</div>
+        </div>
+      </div>
+
+      <!-- ════ SETTINGS ════ -->
+      <div class="panel" id="panel-settings">
+        <div style="max-width:480px;">
+          <div class="tbl-wrap" style="margin-bottom:16px;">
+            <div class="tbl-header"><span class="tbl-title">⚙️ 임계값 설정</span></div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:14px;">
+              <div class="flex-row">
+                <div style="flex:1"><div style="font-size:12px;font-weight:500">유통기한 임박 기준 (개월)</div><div style="font-size:11px;color:var(--text3);margin-top:2px">이 개월 수 미만이면 경고</div></div>
+                <input type="number" id="cfg-exp-months" value="6" min="1" max="24" style="width:80px">
+              </div>
+              <div class="flex-row">
+                <div style="flex:1"><div style="font-size:12px;font-weight:500">재고 부족 기준 (수량)</div><div style="font-size:11px;color:var(--text3);margin-top:2px">이 수량 이하이면 경고</div></div>
+                <input type="number" id="cfg-low-stock" value="100" min="0" style="width:80px">
+              </div>
+              <div class="flex-row">
+                <div style="flex:1"><div style="font-size:12px;font-weight:500">헤더 행 번호 (1-based)</div><div style="font-size:11px;color:var(--text3);margin-top:2px">파일의 헤더가 몇 번째 행인지</div></div>
+                <input type="number" id="cfg-header-row" value="4" min="1" style="width:80px">
+              </div>
+              <button class="btn btn-accent" onclick="saveSettings()">저장</button>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <div class="tbl-header"><span class="tbl-title">🗄️ DB 현황</span></div>
+            <div style="padding:16px;font-size:12px;color:var(--text2);" id="db-detail"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      <span id="status-msg">대기 중 — 파일을 업로드하여 분석을 시작하세요</span>
+    </div>
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<script type="module">
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let todayRows = [], yesterdayRows = [], todayDate = '', settings = {};
+let todayFile = null, yestFile = null;
+
+// ═══════════════════════════════════════════════════════════
+//  FIREBASE REALTIME DATABASE
+// ═══════════════════════════════════════════════════════════
+import { initializeApp }             from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, remove, child, push, query, orderByChild, equalTo }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyCz_fa_BGZHxvGuevIHDTuNmTN65heiYxg",
+  authDomain:        "deokpyeong-inventory.firebaseapp.com",
+  databaseURL:       "https://deokpyeong-inventory-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "deokpyeong-inventory",
+  storageBucket:     "deokpyeong-inventory.firebasestorage.app",
+  messagingSenderId: "900487188521",
+  appId:             "1:900487188521:web:b2a34237f5ce2160d3cc38",
+  measurementId:     "G-0DZ5D5XZTP"
+};
+
+const _app = initializeApp(firebaseConfig);
+const _db  = getDatabase(_app);
+
+// ── 경로 헬퍼 ──────────────────────────────────────────────
+// RTDB 경로: /issues/{date}/{pushId}, /states/{barcode}, /settings, /snapshots/{date}
+const PATH = {
+  issues:   (date)    => `issues/${date}`,
+  state:    (barcode) => `states/${barcode.replace(/\./g,'_')}`,
+  states:   ()        => `states`,
+  settings: ()        => `settings`,
+  snapshot: (date)    => `snapshots/${date}`,
+};
+
+// ── Firebase DB 래퍼 (async) ───────────────────────────────
+async function fbGet(path, def = null) {
+  try {
+    const snap = await get(ref(_db, path));
+    return snap.exists() ? snap.val() : def;
+  } catch(e) {
+    console.warn('fbGet error', path, e);
+    return def;
+  }
+}
+
+async function fbSet(path, val) {
+  await set(ref(_db, path), val);
+}
+
+async function fbUpdate(path, val) {
+  await update(ref(_db, path), val);
+}
+
+async function fbPush(path, val) {
+  const newRef = push(ref(_db, path));
+  await set(newRef, val);
+  return newRef.key;
+}
+
+async function fbRemove(path) {
+  await remove(ref(_db, path));
+}
+
+// ── 로컬 캐시 (렌더링 속도용) ──────────────────────────────
+let _cache = { issues: {}, states: {}, settings: {} };
+
+async function initCache() {
+  showLoading('Firebase 데이터 불러오는 중...');
+  try {
+    _cache.issues   = await fbGet('issues',   {}) || {};
+    _cache.states   = await fbGet('states',   {}) || {};
+    _cache.settings = await fbGet('settings', {}) || {};
+  } catch(e) { console.error('initCache error', e); }
+  hideLoading();
+}
+
+// ── 기존 코드 호환용 동기 인터페이스 (캐시 기반) ─────────────
+// dbGet/dbSet은 캐시만 읽고, Firebase 쓰기는 별도 async 함수로 처리
+function dbGet(key, def) {
+  if (key === 'dp_issues_v2') {
+    // 날짜별 객체를 flat array로 변환
+    const all = [];
+    for (const [date, dayIssues] of Object.entries(_cache.issues)) {
+      if (dayIssues && typeof dayIssues === 'object') {
+        for (const issue of Object.values(dayIssues)) all.push(issue);
+      }
+    }
+    return all.length ? all : def;
+  }
+  if (key === 'dp_state_v2')    return Object.fromEntries(
+    Object.entries(_cache.states).map(([k,v]) => [k.replace(/_/g,'.'), v])
+  ) || def;
+  if (key === 'dp_settings_v2') return _cache.settings || def;
+  if (key === 'dp_snapshots_v2') return _cache.snapshots || def;
+  return def;
+}
+
+function dbSet(key, val) {
+  // 캐시만 업데이트 — Firebase 쓰기는 runAnalysis에서 일괄 처리
+  if (key === 'dp_state_v2')    _cache.states   = Object.fromEntries(Object.entries(val).map(([k,v])=>[k.replace(/\./g,'_'),v]));
+  if (key === 'dp_settings_v2') _cache.settings = val;
+  if (key === 'dp_snapshots_v2') _cache.snapshots = val;
+  // issues는 runAnalysis에서 직접 fbPush로 처리
+}
+
+function loadSettings() {
+  const s = dbGet('dp_settings_v2', {});
+  settings = {
+    expMonths: s.expMonths ?? 6,
+    lowStock:  s.lowStock  ?? 100,
+    headerRow: s.headerRow ?? 4,
+    colBarcode:  s.colBarcode  ?? 'C', // will be overridden by input
+    colItemcode: s.colItemcode ?? 'D',
+    colQty:      s.colQty      ?? 'CI',
+    colExp:      s.colExp      ?? 'BQ',
+  };
+  document.getElementById('cfg-exp-months').value = settings.expMonths;
+  document.getElementById('cfg-low-stock').value  = settings.lowStock;
+  document.getElementById('cfg-header-row').value = settings.headerRow;
+}
+
+async function saveSettings() {
+  settings.expMonths = parseInt(document.getElementById('cfg-exp-months').value) || 6;
+  settings.lowStock  = parseInt(document.getElementById('cfg-low-stock').value)  || 100;
+  settings.headerRow = parseInt(document.getElementById('cfg-header-row').value) || 4;
+  _cache.settings = settings;
+  await fbSet(PATH.settings(), settings);
+  toast('설정이 저장되었습니다', 'success');
+  updateDBInfo();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  COLUMN LETTER → INDEX
+// ═══════════════════════════════════════════════════════════
+function colIndex(letter) {
+  letter = letter.trim().toUpperCase();
+  let idx = 0;
+  for (let i = 0; i < letter.length; i++) {
+    idx = idx * 26 + (letter.charCodeAt(i) - 64);
+  }
+  return idx - 1;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  XLS BIFF8 PARSER (pure JS — no library)
+// ═══════════════════════════════════════════════════════════
+function parseXLS(buffer) {
+  const data = new Uint8Array(buffer);
+  const dv   = new DataView(buffer);
+
+  const ru16 = o => dv.getUint16(o, true);
+  const ru32 = o => dv.getUint32(o, true);
+  const rdbl = o => dv.getFloat64(o, true);
+  const ri32 = o => dv.getInt32(o, true);
+
+  const S = 512;
+  // Build FAT
+  const fat = [];
+  for (let i = 0; i < 109; i++) {
+    const sid = ru32(0x4C + i * 4);
+    if (sid < 0xFFFFFFFA) {
+      const off = (sid + 1) * S;
+      for (let j = 0; j < S / 4; j++) fat.push(ru32(off + j * 4));
+    }
+  }
+  function chainSectors(start) {
+    const c = []; let s = start; const seen = new Set();
+    while (s < 0xFFFFFFFA && !seen.has(s)) { c.push(s); seen.add(s); s = s < fat.length ? fat[s] : 0xFFFFFFFF; }
+    return c;
+  }
+  function readStream(start, size) {
+    const buf = new Uint8Array(size);
+    let written = 0;
+    for (const s of chainSectors(start)) {
+      const off = (s + 1) * S;
+      const chunk = Math.min(S, size - written);
+      buf.set(data.subarray(off, off + chunk), written);
+      written += chunk;
+      if (written >= size) break;
+    }
+    return buf;
+  }
+
+  // Read directory
+  const firstDir = ru32(0x30);
+  const dirChain = chainSectors(firstDir);
+  const dirData  = new Uint8Array(dirChain.length * S);
+  dirChain.forEach((s, i) => dirData.set(data.subarray((s+1)*S, (s+2)*S), i * S));
+
+  let wbStart = -1, wbSize = 0;
+  for (let i = 0; i < dirData.length / 128; i++) {
+    const off = i * 128;
+    const nlen = dirData[off + 64] | (dirData[off + 65] << 8);
+    if (nlen < 2) continue;
+    let name = '';
+    for (let j = 0; j < nlen - 2; j += 2) name += String.fromCharCode(dirData[off+j] | (dirData[off+j+1] << 8));
+    if (name === 'Workbook' || name === 'Book') {
+      wbStart = dirData[off+116] | (dirData[off+117]<<8) | (dirData[off+118]<<16) | (dirData[off+119]<<24);
+      wbSize  = dirData[off+120] | (dirData[off+121]<<8) | (dirData[off+122]<<16) | (dirData[off+123]<<24);
+    }
+  }
+  if (wbStart < 0) throw new Error('Workbook stream not found');
+
+  const wb = readStream(wbStart, wbSize);
+  const wdv = new DataView(wb.buffer);
+  const wru16 = o => wdv.getUint16(o, true);
+  const wru32 = o => wdv.getUint32(o, true);
+  const wrdbl = o => wdv.getFloat64(o, true);
+
+  // Parse SST + CONTINUE
+  let sst = [];
+  let pos = 0;
+  while (pos < wb.length - 4) {
+    const rt = wru16(pos); const rl = wru16(pos + 2);
+    if (rt === 0x00FC) {
+      const unique = wru32(pos + 6);
+      const combined = Array.from(wb.subarray(pos + 4, pos + 4 + rl));
+      let np = pos + 4 + rl;
+      while (np < wb.length - 4 && wru16(np) === 0x003C) {
+        const cl = wru16(np + 2);
+        combined.push(...wb.subarray(np + 4, np + 4 + cl));
+        np += 4 + cl;
+      }
+      let sp = 8;
+      for (let k = 0; k < unique; k++) {
+        if (sp + 3 > combined.length) break;
+        const cch = combined[sp] | (combined[sp+1] << 8); sp += 2;
+        const flags = combined[sp++];
+        const rich = (flags >> 3) & 1, ext = (flags >> 2) & 1, dbl = flags & 1;
+        let rc = 0, el = 0;
+        if (rich) { rc = combined[sp] | (combined[sp+1] << 8); sp += 2; }
+        if (ext)  { el = combined[sp] | (combined[sp+1]<<8) | (combined[sp+2]<<16) | (combined[sp+3]<<24); sp += 4; }
+        const nb = cch * (dbl ? 2 : 1);
+        let s = '';
+        if (dbl) {
+          for (let j = 0; j < cch; j++) s += String.fromCharCode(combined[sp+j*2] | (combined[sp+j*2+1]<<8));
+        } else {
+          for (let j = 0; j < cch; j++) {
+            const code = combined[sp + j];
+            s += code < 128 ? String.fromCharCode(code) : String.fromCharCode(code); // cp949 approx
+          }
+          // Try to decode as UTF-8 via TextDecoder for Korean
+          try {
+            s = new TextDecoder('cp949').decode(new Uint8Array(combined.slice(sp, sp + cch)));
+          } catch(e) {}
+        }
+        sp += nb + rc * 4 + el;
+        sst.push(s);
+      }
+      break;
+    }
+    pos += 4 + rl;
+  }
+
+  // XF formats
+  const xfFmts = [];
+  pos = 0;
+  while (pos < wb.length - 4) {
+    const rt = wru16(pos); const rl = wru16(pos + 2);
+    if (rt === 0x00E0) xfFmts.push(wru16(pos + 6));
+    pos += 4 + rl;
+  }
+  const DATE_FMT = new Set([14,15,16,17,18,19,20,21,22,27,28,29,30,31,32,33,34,35,36,45,46,47,50,51,52,53,54,55,56,57,58]);
+
+  function xlsDate(n) {
+    try {
+      const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000);
+      return d.toISOString().slice(0, 10);
+    } catch { return String(n); }
+  }
+
+  // Find sheets
+  const sheets = [];
+  pos = 0;
+  while (pos < wb.length - 4) {
+    const rt = wru16(pos); const rl = wru16(pos + 2);
+    if (rt === 0x0085) {
+      const shOff = wru32(pos + 4);
+      const nlen = wb[pos + 10]; const flag = wb[pos + 11];
+      let nm = '';
+      if (flag & 1) { for (let j = 0; j < nlen; j++) nm += String.fromCharCode(wb[pos+12+j*2]|(wb[pos+13+j*2]<<8)); }
+      else { try { nm = new TextDecoder('cp949').decode(wb.subarray(pos+12, pos+12+nlen)); } catch { nm='Sheet'; } }
+      sheets.push({ name: nm, off: shOff });
+    }
+    pos += 4 + rl;
+  }
+
+  // Parse cells from first sheet
+  const cells = new Map(); // "r,c" -> value
+  pos = sheets[0]?.off ?? 0;
+  while (pos < wb.length - 4) {
+    const rt = wru16(pos); const rl = wru16(pos + 2);
+    if (rt === 0x000A) break;
+    const rec = pos + 4;
+    if (rt === 0x00FD) { // LABELSST
+      const r = wru16(rec), c = wru16(rec+2), si = wru32(rec+6);
+      if (si < sst.length) cells.set(`${r},${c}`, sst[si]);
+    } else if (rt === 0x0203) { // NUMBER
+      const r = wru16(rec), c = wru16(rec+2), xf = wru16(rec+4);
+      const v = wrdbl(rec+6);
+      const fmt = xf < xfFmts.length ? xfFmts[xf] : 0;
+      cells.set(`${r},${c}`, DATE_FMT.has(fmt) ? xlsDate(v) : v);
+    } else if (rt === 0x027E) { // RK
+      const r = wru16(rec), c = wru16(rec+2), xf = wru16(rec+4);
+      const rk = wru32(rec+6);
+      let v;
+      if (rk & 2) v = rk >> 2;
+      else { const b = new ArrayBuffer(8); new DataView(b).setUint32(4, rk & 0xFFFFFFFC, true); v = new DataView(b).getFloat64(0, true); }
+      if (rk & 1) v /= 100;
+      const fmt = xf < xfFmts.length ? xfFmts[xf] : 0;
+      cells.set(`${r},${c}`, DATE_FMT.has(fmt) ? xlsDate(v) : v);
+    } else if (rt === 0x0204) { // LABEL (old)
+      const r = wru16(rec), c = wru16(rec+2);
+      const len = wru16(rec+6);
+      try { cells.set(`${r},${c}`, new TextDecoder('cp949').decode(wb.subarray(rec+8, rec+8+len))); } catch {}
+    }
+    pos += 4 + rl;
+  }
+
+  return cells;
+}
+
+// ─── CSV parser ───────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/);
+  const cells = new Map();
+  lines.forEach((line, r) => {
+    const cols = line.split(',');
+    cols.forEach((val, c) => { if (val.trim()) cells.set(`${r},${c}`, val.trim()); });
+  });
+  return cells;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FILE → ROW OBJECTS
+// ═══════════════════════════════════════════════════════════
+function isValidDate(s) {
+  if (!s) return false;
+  s = String(s).trim();
+  // Must look like a date: YYYY-MM-DD or YYYY.MM.DD etc.
+  if (!/^\d{4}[-./]\d{1,2}[-./]\d{1,2}$/.test(s)) return false;
+  const d = new Date(s.replace(/\./g, '-').replace(/\//g, '-'));
+  return !isNaN(d.getTime());
+}
+
+function cellsToRows(cells, colCfg) {
+  const { cBarcode, cItemcode, cQty, cExp, cExpAlt } = colCfg;
+
+  // Find max row
+  let maxR = 0;
+  for (const k of cells.keys()) { const r = parseInt(k.split(',')[0]); if (r > maxR) maxR = r; }
+
+  // Auto-detect data start row: find first row with a barcode-like value in C column (after row 3)
+  let dataStart = 5;
+  for (let r = 4; r <= Math.min(maxR, 15); r++) {
+    const v = String(cells.get(`${r},${cBarcode}`) ?? '').trim();
+    // Barcode: numeric string 8-14 digits, or alphanumeric code
+    if (v && v !== '원바코드' && /^[A-Za-z0-9]{6,}$/.test(v)) { dataStart = r; break; }
+  }
+
+  const rows = [];
+  for (let r = dataStart; r <= maxR; r++) {
+    const barcode  = String(cells.get(`${r},${cBarcode}`)  ?? '').trim();
+    if (!barcode) continue;
+    // Skip if barcode looks like a header
+    if (barcode === '원바코드' || barcode === 'barcode') continue;
+
+    const itemcode = String(cells.get(`${r},${cItemcode}`) ?? '').trim();
+    const qtyRaw   = cells.get(`${r},${cQty}`);
+    const qty      = qtyRaw != null && !isNaN(parseFloat(qtyRaw)) ? parseFloat(qtyRaw) : null;
+
+    // Expiry: try primary col, then alt col — validate it's actually a date, not a barcode
+    let expiry = '';
+    for (const ci of [cExp, cExpAlt]) {
+      const raw = cells.get(`${r},${ci}`);
+      if (raw == null) continue;
+      if (typeof raw === 'number') {
+        // XLS serial date
+        const d = new Date(Date.UTC(1899, 11, 30) + Math.round(raw) * 86400000);
+        if (!isNaN(d) && d.getFullYear() > 2000 && d.getFullYear() < 2100) {
+          expiry = d.toISOString().slice(0, 10); break;
+        }
+      } else {
+        const s = String(raw).trim();
+        if (isValidDate(s)) { expiry = s.replace(/\./g,'-').replace(/\//g,'-'); break; }
+      }
+    }
+
+    rows.push({ barcode, itemcode, qty, expiry });
+  }
+  return rows;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOAD FILE
+// ═══════════════════════════════════════════════════════════
+function dov(e, id) { e.preventDefault(); document.getElementById(id).classList.add('dragover'); }
+function dol(id)    { document.getElementById(id).classList.remove('dragover'); }
+function dop(e, which) {
+  e.preventDefault();
+  dol(which === 'today' ? 'zone-today' : 'zone-yest');
+  const f = e.dataTransfer.files[0]; if (f) processFile(f, which);
+}
+function loadFile(e, which) { const f = e.target.files[0]; if (f) processFile(f, which); }
+
+function processFile(file, which) {
+  const statusEl = document.getElementById(which === 'today' ? 'today-status' : 'yest-status');
+  statusEl.textContent = '읽는 중...';
+  statusEl.style.color = 'var(--amber)';
+
+  const reader = new FileReader();
+  const isCSV = file.name.toLowerCase().endsWith('.csv');
+
+  reader.onload = e => {
+    try {
+      let cells;
+      if (isCSV) {
+        cells = parseCSV(e.target.result);
+      } else {
+        cells = parseXLS(e.target.result);
+      }
+
+      const colCfg = getColCfg();
+      const rows = cellsToRows(cells, colCfg);
+
+      if (which === 'today') { todayRows = rows; todayFile = file.name; }
+      else                   { yesterdayRows = rows; yestFile = file.name; }
+
+      statusEl.textContent = `✓ ${file.name} — ${rows.length}행 인식`;
+      statusEl.style.color = 'var(--green)';
+      toast(`${file.name} 로드 완료 (${rows.length}행)`, 'success');
+    } catch(err) {
+      statusEl.textContent = `✗ 오류: ${err.message}`;
+      statusEl.style.color = 'var(--red)';
+      toast('파일 읽기 실패: ' + err.message, 'error');
+    }
+  };
+
+  if (isCSV) reader.readAsText(file, 'utf-8');
+  else reader.readAsArrayBuffer(file);
+}
+
+function getColCfg() {
+  return {
+    cBarcode:  colIndex(document.getElementById('cfg-barcode').value  || 'C'),
+    cItemcode: colIndex(document.getElementById('cfg-itemcode').value || 'D'),
+    cQty:      colIndex(document.getElementById('cfg-qty').value      || 'CI'),
+    cExp:      colIndex(document.getElementById('cfg-exp').value      || 'BQ'),
+    cExpAlt:   colIndex('BZ'),  // BZ as fallback for BQ
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ANALYSIS ENGINE
+// ═══════════════════════════════════════════════════════════
+async function runAnalysis() {
+  if (!todayRows.length) { toast('오늘 파일을 먼저 업로드해주세요', 'error'); return; }
+
+  showLoading('Firebase에서 최신 데이터 로드 중...');
+
+  // Firebase에서 최신 상태 가져오기
+  _cache.states  = await fbGet('states',  {}) || {};
+  _cache.issues  = await fbGet('issues',  {}) || {};
+
+  showLoading('분석 중...');
+
+  try {
+    todayDate = new Date().toISOString().slice(0, 10);
+    const newIssues = [];
+
+    const todayMap = buildMap(todayRows);
+    const yestMap  = buildMap(yesterdayRows);
+
+    // 상태 DB (바코드 키의 '.'을 '_'로 치환해서 RTDB 경로 사용)
+    const stateDB = Object.fromEntries(
+      Object.entries(_cache.states).map(([k,v]) => [k.replace(/_/g,'.'), v])
+    );
+
+    // 오늘 이미 저장된 이슈 키 (중복 방지)
+    const todayExisting = _cache.issues[todayDate] || {};
+    const todayIssueKeys = new Set(
+      Object.values(todayExisting).map(i => `${i.type}|${i.barcode}`)
+    );
+
+    function addIssue(type, barcode, itemcode, detail) {
+      const key = `${type}|${barcode}`;
+      if (todayIssueKeys.has(key)) return;
+      todayIssueKeys.add(key);
+      newIssues.push({ date: todayDate, barcode, itemcode, type, detail });
+    }
+
+    // ── 2-1. 신규 상품 ──
+    for (const [bc, row] of todayMap) {
+      if (!yestMap.has(bc) && yesterdayRows.length > 0) {
+        addIssue('신규상품', bc, row.itemcode, `신규 상품 추가`);
+      }
+    }
+
+    // ── 2-2. 아이템코드 변경 ──
+    if (yesterdayRows.length > 0) {
+      for (const [bc, row] of todayMap) {
+        const yRow = yestMap.get(bc);
+        if (yRow && yRow.itemcode && row.itemcode && yRow.itemcode !== row.itemcode) {
+          addIssue('아이템코드변경', bc, row.itemcode, `${yRow.itemcode} → ${row.itemcode}`);
+        }
+      }
+    }
+
+    // ── 3. 유통기한 임박 ──
+    const today = new Date(); today.setHours(0,0,0,0);
+    const expLimit = new Date(today); expLimit.setMonth(expLimit.getMonth() + settings.expMonths);
+
+    for (const [bc, row] of todayMap) {
+      if (!row.expiry) continue;
+      const expDate = new Date(row.expiry);
+      if (isNaN(expDate)) continue;
+      const diffDays   = Math.ceil((expDate - today) / 86400000);
+      const diffMonths = (expDate.getFullYear() - today.getFullYear()) * 12 + (expDate.getMonth() - today.getMonth());
+      if (expDate < expLimit) {
+        const mo     = Math.max(0, diffMonths);
+        const detail = diffDays < 0
+          ? `유통기한 만료 (${Math.abs(diffDays)}일 초과)`
+          : `유통기한 임박 (${mo}개월 남음, ${row.expiry})`;
+        addIssue('유통기한임박', bc, row.itemcode, detail);
+      }
+    }
+
+    // ── 4 & 5. 재고 부족 / 보충 ──
+    const stateUpdates = {}; // Firebase에 한 번에 업데이트할 상태 변경
+    for (const [bc, row] of todayMap) {
+      const prevState = stateDB[bc];
+      const isLow     = row.qty !== null && row.qty <= settings.lowStock;
+      const fbKey     = bc.replace(/\./g, '_');
+
+      if (isLow) {
+        if (!prevState || !prevState.lowStock) {
+          addIssue('재고부족발생', bc, row.itemcode, `재고 부족 발생 (${row.qty}개)`);
+          stateUpdates[fbKey] = { lowStock: true, since: todayDate, qty: row.qty, itemcode: row.itemcode };
+        } else {
+          const days = daysBetween(prevState.since, todayDate);
+          addIssue('재고부족유지', bc, row.itemcode, `재고 부족 상태 유지 (${row.qty}개, ${days}일째)`);
+          stateUpdates[fbKey] = { ...prevState, qty: row.qty };
+        }
+      } else {
+        if (prevState?.lowStock) {
+          addIssue('재고보충', bc, row.itemcode, `재고 보충 완료 (${prevState.qty}개 → ${row.qty}개)`);
+          stateUpdates[fbKey] = { ...prevState, lowStock: false };
+        }
+      }
+    }
+
+    showLoading(`Firebase에 저장 중... (이슈 ${newIssues.length}건)`);
+
+    // ── Firebase 일괄 저장 ──
+    const writes = [];
+
+    // 1) 새 이슈들 저장: /issues/{date}/{pushId}
+    for (const issue of newIssues) {
+      writes.push(fbPush(PATH.issues(todayDate), issue));
+    }
+
+    // 2) 상태 업데이트: /states/{barcode}
+    if (Object.keys(stateUpdates).length) {
+      writes.push(fbUpdate('states', stateUpdates));
+    }
+
+    // 3) 스냅샷 저장: /snapshots/{date} (행 수만 저장, 용량 절약)
+    writes.push(fbSet(PATH.snapshot(todayDate), {
+      rowCount: todayRows.length,
+      uploadedAt: new Date().toISOString(),
+      file: todayFile || ''
+    }));
+
+    await Promise.all(writes);
+
+    // 캐시 갱신
+    _cache.states  = await fbGet('states',  {}) || {};
+    _cache.issues  = await fbGet('issues',  {}) || {};
+    _cache.snapshots = await fbGet('snapshots', {}) || {};
+
+    hideLoading();
+    updateDBInfo();
+
+    renderTodayPanel(newIssues, todayMap, yestMap);
+    renderActiveIssues();
+    renderHistory();
+    renderInventory();
+    updateNavBadges();
+
+    gotoPanel('today', document.querySelector('.nav-item:nth-child(2)'));
+    toast(`분석 완료 — 이슈 ${newIssues.length}건 Firebase 저장`, 'success');
+    document.getElementById('status-msg').textContent =
+      `마지막 분석: ${todayDate} | 오늘 이슈 ${newIssues.length}건 | ☁️ Firebase 동기화 완료`;
+
+  } catch(err) {
+    hideLoading();
+    toast('분석 오류: ' + err.message, 'error');
+    console.error(err);
+  }
+}
+
+function buildMap(rows) {
+  const m = new Map();
+  for (const r of rows) { if (r.barcode) m.set(r.barcode, r); }
+  return m;
+}
+
+function daysBetween(d1, d2) {
+  return Math.ceil((new Date(d2) - new Date(d1)) / 86400000);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER: TODAY PANEL
+// ═══════════════════════════════════════════════════════════
+function renderTodayPanel(newIssues, todayMap, yestMap) {
+  // Metrics
+  const newProds = newIssues.filter(i => i.type === '신규상품').length;
+  const expiring = newIssues.filter(i => i.type === '유통기한임박').length;
+  const lowStock = newIssues.filter(i => i.type === '재고부족발생' || i.type === '재고부족유지').length;
+  const codeChg  = newIssues.filter(i => i.type === '아이템코드변경').length;
+
+  document.getElementById('m-total').textContent = todayMap.size;
+  document.getElementById('m-total-d').textContent = yesterdayRows.length
+    ? `전일 ${yestMap.size}개` : '비교 없음';
+  document.getElementById('m-new').textContent = newProds;
+  document.getElementById('m-expiry').textContent = expiring;
+  document.getElementById('m-low').textContent = lowStock;
+  document.getElementById('m-code-chg').textContent = codeChg;
+
+  // Alert cards
+  const alerts = [];
+  if (newProds)   alerts.push({ cls:'blue',  icon:'🆕', title:`신규 상품 ${newProds}건`, body: newIssues.filter(i=>i.type==='신규상품').map(i=>i.barcode).join(', ') });
+  if (codeChg)    alerts.push({ cls:'purple',icon:'🔄', title:`아이템코드 변경 ${codeChg}건`, body: newIssues.filter(i=>i.type==='아이템코드변경').map(i=>`${i.barcode}: ${i.detail}`).join(' / ') });
+  if (expiring) {
+    const expired = newIssues.filter(i=>i.type==='유통기한임박'&&i.detail.includes('만료'));
+    const soon    = newIssues.filter(i=>i.type==='유통기한임박'&&!i.detail.includes('만료'));
+    if (expired.length) alerts.push({ cls:'red',   icon:'🚨', title:`유통기한 만료 ${expired.length}건`, body: expired.map(i=>i.barcode).join(', ') });
+    if (soon.length)    alerts.push({ cls:'amber', icon:'⏰', title:`유통기한 임박 ${soon.length}건`, body: soon.map(i=>i.barcode).join(', ') });
+  }
+  if (lowStock) {
+    const occurred = newIssues.filter(i=>i.type==='재고부족발생').length;
+    const kept     = newIssues.filter(i=>i.type==='재고부족유지').length;
+    const restored = newIssues.filter(i=>i.type==='재고보충').length;
+    if (occurred) alerts.push({ cls:'red',   icon:'📉', title:`재고 부족 발생 ${occurred}건`, body: newIssues.filter(i=>i.type==='재고부족발생').map(i=>i.barcode).join(', ') });
+    if (kept)     alerts.push({ cls:'amber', icon:'⚠️',  title:`재고 부족 지속 ${kept}건`, body: newIssues.filter(i=>i.type==='재고부족유지').map(i=>i.barcode).join(', ') });
+    if (restored) alerts.push({ cls:'green', icon:'📈', title:`재고 보충 완료 ${restored}건`, body: newIssues.filter(i=>i.type==='재고보충').map(i=>i.barcode).join(', ') });
+  }
+
+  document.getElementById('today-alerts').innerHTML = alerts.map(a =>
+    `<div class="alert-card ${a.cls}">
+      <div class="alert-icon">${a.icon}</div>
+      <div><div class="alert-title">${a.title}</div><div class="alert-body">${a.body||'—'}</div></div>
+    </div>`
+  ).join('');
+
+  // Issue list
+  const grouped = {};
+  for (const i of newIssues) {
+    if (!grouped[i.type]) grouped[i.type] = [];
+    grouped[i.type].push(i);
+  }
+  const typeLabels = { 신규상품:'🆕 신규 상품', 아이템코드변경:'🔄 아이템코드 변경', 유통기한임박:'⏰ 유통기한 임박', 재고부족발생:'📉 재고 부족 발생', 재고부족유지:'⚠️ 재고 부족 유지', 재고보충:'📈 재고 보충' };
+  const typeTag   = { 신규상품:'tag-blue', 아이템코드변경:'tag-purple', 유통기한임박:'tag-amber', 재고부족발생:'tag-red', 재고부족유지:'tag-amber', 재고보충:'tag-green' };
+
+  if (!newIssues.length) {
+    document.getElementById('today-issue-list').innerHTML =
+      '<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">오늘 발생한 이슈가 없습니다</div></div>';
+    return;
+  }
+
+  document.getElementById('today-issue-list').innerHTML =
+    `<div class="tbl-wrap">
+      <table><thead><tr><th>유형</th><th>원바코드</th><th>아이템코드</th><th>상세</th></tr></thead>
+      <tbody>${newIssues.map(i =>
+        `<tr>
+          <td><span class="tag ${typeTag[i.type]||'tag-gray'}">${typeLabels[i.type]||i.type}</span></td>
+          <td class="td-mono">${i.barcode}</td>
+          <td class="td-mono">${i.itemcode||'—'}</td>
+          <td style="font-size:11px;color:var(--text2)">${i.detail}</td>
+        </tr>`
+      ).join('')}</tbody></table>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER: ACTIVE ISSUES
+// ═══════════════════════════════════════════════════════════
+function renderActiveIssues() {
+  const stateDB  = dbGet('dp_state_v2', {});
+  const issuesDB = dbGet('dp_issues_v2', []);
+  const search   = (document.getElementById('issue-search')?.value || '').toLowerCase();
+  const typeF    = document.getElementById('issue-type-filter')?.value || '';
+
+  // Build active issue list from state + recent issues
+  const activeIssues = [];
+  const seen = new Set();
+
+  // Persistent state issues (lowStock ongoing)
+  for (const [bc, state] of Object.entries(stateDB)) {
+    if (state.lowStock) {
+      const key = `재고부족|${bc}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const days = daysBetween(state.since, new Date().toISOString().slice(0,10));
+        activeIssues.push({ bc, itemcode: state.itemcode, type: '재고부족', detail: `재고 ${state.qty}개 (${days}일째 지속)`, since: state.since, days });
+      }
+    }
+  }
+
+  // Recent issues (last 30 days, non-resolved types)
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+  const latestByKey = {};
+  for (const i of issuesDB) {
+    if (new Date(i.date) < cutoff) continue;
+    if (i.type === '재고보충' || i.type === '재고부족유지') continue;
+    const key = `${i.type}|${i.barcode}`;
+    if (!latestByKey[key] || i.date > latestByKey[key].date) latestByKey[key] = i;
+  }
+  for (const i of Object.values(latestByKey)) {
+    const key = `${i.type}|${i.barcode}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      activeIssues.push({ bc: i.barcode, itemcode: i.itemcode, type: i.type, detail: i.detail, since: i.date, days: daysBetween(i.date, new Date().toISOString().slice(0,10)) });
+    }
+  }
+
+  // Filter
+  const filtered = activeIssues.filter(i => {
+    if (search && !i.bc.toLowerCase().includes(search) && !(i.itemcode||'').toLowerCase().includes(search)) return false;
+    if (typeF && !i.type.includes(typeF.replace('재고부족', '재고'))) return false;
+    return true;
+  });
+
+  // Alert summary
+  const lowCount = activeIssues.filter(i => i.type === '재고부족').length;
+  const expCount = activeIssues.filter(i => i.type === '유통기한임박').length;
+  let alertHtml = '';
+  if (lowCount) alertHtml += `<div class="alert-card red"><div class="alert-icon">📉</div><div><div class="alert-title">재고 부족 상태 유지 중 ${lowCount}건</div><div class="alert-body">재고 ${settings.lowStock}개 이하 상태 지속</div></div></div>`;
+  if (expCount) alertHtml += `<div class="alert-card amber"><div class="alert-icon">⏰</div><div><div class="alert-title">유통기한 임박 활성 ${expCount}건</div><div class="alert-body">${settings.expMonths}개월 내 만료 예정</div></div></div>`;
+  document.getElementById('active-state-alerts').innerHTML = alertHtml;
+
+  const tbody = document.getElementById('tbody-issues');
+  const empty = document.getElementById('empty-issues');
+  document.getElementById('nb-issues').textContent = activeIssues.length;
+
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const typeTag = { 재고부족:'tag-red', 유통기한임박:'tag-amber', 아이템코드변경:'tag-purple', 신규상품:'tag-blue' };
+  const typeDot = { 재고부족:'red', 유통기한임박:'amber', 아이템코드변경:'amber', 신규상품:'green' };
+
+  tbody.innerHTML = filtered.map(i =>
+    `<tr>
+      <td><div class="state-indicator"><div class="state-dot ${typeDot[i.type]||'amber'}"></div></div></td>
+      <td class="td-mono">${i.bc}</td>
+      <td class="td-mono">${i.itemcode||'—'}</td>
+      <td><span class="tag ${typeTag[i.type]||'tag-gray'}">${i.type}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${i.detail}</td>
+      <td class="td-mono">${i.since}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${i.days}일</td>
+    </tr>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER: HISTORY
+// ═══════════════════════════════════════════════════════════
+function renderHistory() {
+  const issuesDB = dbGet('dp_issues_v2', []);
+  const selDate  = document.getElementById('hist-date')?.value || '';
+  const selType  = document.getElementById('hist-type')?.value || '';
+
+  let filtered = issuesDB;
+  if (selDate) filtered = filtered.filter(i => i.date === selDate);
+  if (selType) filtered = filtered.filter(i => i.type === selType);
+  filtered = [...filtered].reverse();
+
+  document.getElementById('hist-count').textContent = `${filtered.length}건`;
+  const tbody = document.getElementById('tbody-history');
+  const empty = document.getElementById('empty-history');
+
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const typeTag = { 신규상품:'tag-blue', 아이템코드변경:'tag-purple', 유통기한임박:'tag-amber', 재고부족발생:'tag-red', 재고부족유지:'tag-amber', 재고보충:'tag-green' };
+  tbody.innerHTML = filtered.map(i =>
+    `<tr>
+      <td class="td-mono">${i.date}</td>
+      <td class="td-mono">${i.barcode}</td>
+      <td class="td-mono">${i.itemcode||'—'}</td>
+      <td><span class="tag ${typeTag[i.type]||'tag-gray'}">${i.type}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${i.detail}</td>
+    </tr>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER: INVENTORY
+// ═══════════════════════════════════════════════════════════
+function renderInventory() {
+  const search  = (document.getElementById('inv-search')?.value || '').toLowerCase();
+  const sort    = document.getElementById('inv-sort')?.value || 'barcode';
+  const filter  = document.getElementById('inv-filter')?.value || '';
+  const today   = new Date(); today.setHours(0,0,0,0);
+  const expLimit= new Date(today); expLimit.setMonth(expLimit.getMonth() + settings.expMonths);
+
+  let rows = [...todayRows];
+  if (search) rows = rows.filter(r => r.barcode.includes(search) || (r.itemcode||'').toLowerCase().includes(search));
+  if (filter === 'low') rows = rows.filter(r => r.qty !== null && r.qty <= settings.lowStock);
+  if (filter === 'expiring') rows = rows.filter(r => { if (!r.expiry) return false; const d=new Date(r.expiry); return !isNaN(d) && d < expLimit; });
+
+  if (sort === 'qty_asc') rows.sort((a,b) => (a.qty??Infinity) - (b.qty??Infinity));
+  else if (sort === 'exp_asc') rows.sort((a,b) => { const da=new Date(a.expiry||'9999'), db=new Date(b.expiry||'9999'); return da-db; });
+  else rows.sort((a,b) => a.barcode.localeCompare(b.barcode));
+
+  document.getElementById('nb-inv').textContent = todayRows.length;
+  const tbody = document.getElementById('tbody-inv');
+  const empty = document.getElementById('empty-inv');
+
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(r => {
+    const isLow = r.qty !== null && r.qty <= settings.lowStock;
+    const expDate = r.expiry ? new Date(r.expiry) : null;
+    const isExpiring = expDate && !isNaN(expDate) && expDate < expLimit;
+    const isExpired  = expDate && !isNaN(expDate) && expDate < today;
+    const diffDays = expDate && !isNaN(expDate) ? Math.ceil((expDate - today) / 86400000) : null;
+    const diffMonths = expDate && !isNaN(expDate) ? (expDate.getFullYear() - today.getFullYear()) * 12 + (expDate.getMonth() - today.getMonth()) : null;
+
+    let expiryText = r.expiry || '—';
+    let expiryTag  = '';
+    if (isExpired)   { expiryTag = '<span class="tag tag-red" style="margin-left:6px">만료</span>'; }
+    else if (isExpiring && diffMonths !== null) { expiryTag = `<span class="tag tag-amber" style="margin-left:6px">${diffMonths}개월</span>`; }
+
+    let qtyTag = '';
+    if (isLow) qtyTag = '<span class="tag tag-red" style="margin-left:6px">부족</span>';
+
+    let statusTag = '';
+    if (isExpired || isLow) statusTag = `<span class="tag tag-red">긴급</span>`;
+    else if (isExpiring) statusTag = `<span class="tag tag-amber">주의</span>`;
+    else statusTag = `<span class="tag tag-gray">정상</span>`;
+
+    const remainText = diffDays !== null ? (diffDays < 0 ? `${Math.abs(diffDays)}일 초과` : `${diffDays}일`) : '—';
+
+    return `<tr>
+      <td class="td-mono">${r.barcode}</td>
+      <td class="td-mono">${r.itemcode||'—'}</td>
+      <td>${r.qty !== null ? r.qty.toLocaleString() : '—'}${qtyTag}</td>
+      <td class="td-mono" style="font-size:11px">${expiryText}${expiryTag}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${remainText}</td>
+      <td>${statusTag}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════
+function updateNavBadges() {
+  const issues = dbGet('dp_issues_v2', []);
+  const state  = dbGet('dp_state_v2', {});
+  const today  = new Date().toISOString().slice(0,10);
+  const todayIssues = issues.filter(i => i.date === today);
+  document.getElementById('nb-today').textContent = todayIssues.length;
+  document.getElementById('nb-issues').textContent = Object.values(state).filter(s=>s.lowStock).length + todayIssues.filter(i=>i.type==='유통기한임박').length;
+  document.getElementById('nb-inv').textContent = todayRows.length;
+}
+
+function updateDBInfo() {
+  const issues   = dbGet('dp_issues_v2', []);
+  const snaps    = _cache.snapshots || {};
+  const days     = Object.keys(snaps).length;
+  const last     = Object.keys(snaps).sort().pop() || '—';
+  document.getElementById('db-days').textContent   = days + '일';
+  document.getElementById('db-issues').textContent = issues.length + '건';
+  document.getElementById('db-last').textContent   = last.slice(5) || '—';
+
+  const dbDetail = document.getElementById('db-detail');
+  if (dbDetail) {
+    const byType = {};
+    for (const i of issues) byType[i.type] = (byType[i.type]||0) + 1;
+    dbDetail.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">` +
+      (Object.entries(byType).length
+        ? Object.entries(byType).map(([t,n]) => `<div class="flex-row"><span style="flex:1">${t}</span><span class="text-mono">${n}건</span></div>`).join('')
+        : '<span style="color:var(--text3)">저장된 이슈 없음</span>') +
+      `</div>`;
+  }
+}
+
+function gotoPanel(id, el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('panel-'+id).classList.add('active');
+  const titles = { upload:'파일 업로드', today:'오늘 현황', issues:'이슈 현황', history:'이슈 히스토리', inventory:'전체 재고', settings:'설정' };
+  document.getElementById('topbar-title').textContent = titles[id] || id;
+  document.getElementById('topbar-sub').textContent = id === 'today' && todayDate ? ` — ${todayDate}` : '';
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = type ? `show ${type}` : 'show';
+  setTimeout(() => el.className = '', 2800);
+}
+
+function showLoading(msg = '처리 중...') {
+  document.getElementById('loading-text').textContent = msg;
+  document.getElementById('loading').classList.add('show');
+}
+function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+
+function exportCSV() {
+  const issues = dbGet('dp_issues_v2', []);
+  if (!issues.length) { toast('내보낼 데이터가 없습니다', 'error'); return; }
+  const hdr  = '날짜,원바코드,아이템코드,이슈유형,상세내용';
+  const rows = issues.map(i => [i.date, i.barcode, i.itemcode||'', i.type, `"${i.detail}"`].join(','));
+  const csv  = '\uFEFF' + [hdr, ...rows].join('\n');
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = `덕평_이슈_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV 내보내기 완료', 'success');
+}
+
+async function clearDB() {
+  if (!confirm('Firebase의 모든 이슈 히스토리와 상태 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  showLoading('Firebase 데이터 삭제 중...');
+  await Promise.all([
+    fbRemove('issues'),
+    fbRemove('states'),
+    fbRemove('snapshots'),
+  ]);
+  _cache = { issues: {}, states: {}, settings: _cache.settings };
+  hideLoading();
+  updateDBInfo();
+  renderActiveIssues();
+  renderHistory();
+  toast('Firebase DB가 초기화되었습니다', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT — Firebase 연결 후 시작
+// ═══════════════════════════════════════════════════════════
+(async () => {
+  await initCache();
+
+  // 설정 로드
+  loadSettings();
+  updateDBInfo();
+  updateNavBadges();
+  renderHistory();
+  renderActiveIssues();
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  document.getElementById('hist-date').value = todayStr;
+
+  document.getElementById('status-msg').textContent =
+    '☁️ Firebase 연결 완료 — 파일을 업로드하여 분석을 시작하세요';
+})();
+</script>
+</body>
+</html>
