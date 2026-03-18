@@ -567,7 +567,8 @@ async function fbRemove(path) {
 }
 
 // ── 로컬 캐시 (렌더링 속도용) ──────────────────────────────
-let _cache = { issues: {}, states: {}, settings: {} };
+window._cache = { issues: {}, states: {}, settings: {} };
+const _cache = window._cache;
 
 async function initCache() {
   showLoading('Firebase 데이터 불러오는 중...');
@@ -578,6 +579,9 @@ async function initCache() {
     _cache.snapshots = await fbGet('snapshots', {}) || {};
     _cache.reflected = await fbGet('reflected', {}) || {};
   } catch(e) { console.error('initCache error', e); }
+  // 디버그: 캐시 로드 결과 확인
+  const issueCount = Object.values(_cache.issues || {}).reduce((s, d) => s + (d ? Object.keys(d).length : 0), 0);
+  console.log('[Cache loaded] issues:', issueCount, '건 | states:', Object.keys(_cache.states||{}).length, '건');
   hideLoading();
 }
 
@@ -1569,7 +1573,7 @@ async function clearDB() {
     fbRemove('snapshots'),
     fbRemove('reflected'),
   ]);
-  _cache = { issues: {}, states: {}, settings: _cache.settings, snapshots: {}, reflected: {} };
+  Object.assign(window._cache, { issues: {}, states: {}, snapshots: {}, reflected: {} });
   hideLoading();
   updateDBInfo();
   renderActiveIssues();
@@ -1613,6 +1617,8 @@ async function clearDB() {
   window.renderInventory   = renderInventory;
   window.onUploadDateChange= onUploadDateChange;
   window.setReflected      = setReflected;
+  // 디버깅용 캐시 직접 접근
+  window._cache = _cache;
 })();
 </script>
 </body>
