@@ -250,8 +250,15 @@ tbody tr:hover td{background:var(--bg3);}
           </div>
         </div>
         <div class="tbl-wrap">
-          <table><thead><tr>
-            <th>상태</th><th>원바코드</th><th>아이템코드</th><th>이슈유형</th><th>상세내용</th><th>발생일</th><th>지속</th><th>처리</th>
+          <table style="table-layout:fixed;min-width:800px"><thead><tr>
+            <th style="width:36px">상태</th>
+            <th style="width:140px">원바코드</th>
+            <th style="width:120px">아이템코드</th>
+            <th style="width:100px">이슈유형</th>
+            <th>상세내용</th>
+            <th style="width:90px">발생일</th>
+            <th style="width:50px">지속</th>
+            <th style="width:100px">처리</th>
           </tr></thead><tbody id="tbody-issues"></tbody></table>
         </div>
         <div class="empty" id="empty-issues" style="display:none">
@@ -776,10 +783,10 @@ function renderIssues(){
     const act=getAct(i);const key=issKey(i);const days=daysDiff(i.date,today);
     return`<tr>
       <td><span class="sdot ${dotCls[i.type]||'sd-blue'}"></span></td>
-      <td class="td-mono">${esc(i.barcode)}</td>
-      <td class="td-mono">${esc(i.itemcode||'—')}</td>
-      <td><span class="tag tag-${tc[i.type]||'gray'}">${esc(i.type)}</span></td>
-      <td style="font-size:11px;color:var(--tx2);max-width:220px">${esc(i.detail||'')}</td>
+      <td class="td-mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.barcode)}</td>
+      <td class="td-mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.itemcode||'—')}</td>
+      <td><span class="tag tag-${tc[i.type]||'gray'}" style="white-space:nowrap">${esc(i.type)}</span></td>
+      <td style="font-size:11px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.detail||'')}</td>
       <td class="td-mono">${i.date}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--tx3)">${days}일</td>
       <td><select class="action-sel" onchange="setAction('${key}',this.value)">
@@ -803,7 +810,7 @@ function renderExpiry(){
   for(const r of curRows){if(!r.expiry)continue;const exp=new Date(r.expiry);if(!isNaN(exp)&&exp<today&&!closedSet.has(r.barcode))closeExpiryAuto(r);}
   let rows=curRows.filter(r=>{
     if(closedSet.has(r.barcode))return false;
-    if(!r.expiry)return false;
+    if(!r.expiry||r.expiry<'2000-01-01')return false;  // 1899년 오류값 제외
     const exp=new Date(r.expiry);return !isNaN(exp)&&exp<expLim;
   });
   if(search)rows=rows.filter(r=>r.barcode.toLowerCase().includes(search));
@@ -853,6 +860,8 @@ async function closeExpiry(bc,reason){
 }
 async function closeExpiryAuto(r){
   const key=r.barcode.replace(/\./g,'_');if(C.exClosed[key])return;
+  // 유효한 날짜인 경우에만 자동 종료 (1899-12-30 같은 오류값 제외)
+  if(!r.expiry||r.expiry<'2000-01-01')return;
   const val={barcode:r.barcode,itemcode:r.itemcode||'',expiry:r.expiry||'',reason:'유통기한만료',closedAt:dateStr(new Date())};
   await fbSet(`expiry_closed/${key}`,val);C.exClosed[key]=val;
 }
