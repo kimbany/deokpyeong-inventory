@@ -177,8 +177,8 @@ tbody tr:hover td{background:var(--bg3);}
       <div class="topbar-title" id="topbar-title">파일 업로드</div>
     </div>
     <div class="topbar-actions">
-      <button class="btn btn-sm" onclick="exportCSV()">⬇ CSV</button>
-      <button class="btn btn-sm btn-red" onclick="clearAll()">🗑 전체삭제</button>
+      <button class="btn btn-sm" id="btn-export-csv">⬇ CSV</button>
+      <button class="btn btn-sm btn-red" id="btn-clear-all">🗑 전체삭제</button>
     </div>
   </div>
 
@@ -194,14 +194,14 @@ tbody tr:hover td{background:var(--bg3);}
               <div style="font-size:11px;color:var(--tx3);margin-bottom:5px">업로드 날짜 <span style="color:var(--acc)">*</span></div>
               <input type="date" id="upload-date" style="width:100%">
             </div>
-            <div class="upload-zone" id="upload-zone" ondragover="doDragOver(event)" ondragleave="doDragLeave()" ondrop="doDrop(event)">
-              <input type="file" accept=".xls,.xlsx,.csv" onchange="onFileSelect(event)">
+            <div class="upload-zone" id="upload-zone">
+              <input type="file" id="file-input" accept=".xls,.xlsx,.csv">
               <div class="uz-icon">📄</div>
               <div class="uz-title">엑셀 / CSV 업로드</div>
               <div class="uz-sub">.xls · .xlsx · .csv 드래그 또는 클릭</div>
               <div class="uz-status" id="upload-status"></div>
             </div>
-            <button class="btn btn-acc" onclick="runUpload()" style="width:100%;justify-content:center;margin-top:12px">📊 분석 실행</button>
+            <button class="btn btn-acc" id="btn-run-upload" style="width:100%;justify-content:center;margin-top:12px">📊 분석 실행</button>
           </div>
         </div>
         <div>
@@ -212,7 +212,7 @@ tbody tr:hover td{background:var(--bg3);}
               <input type="date" id="delete-date" style="width:100%" oninput="renderDeletePreview()">
             </div>
             <div id="delete-preview" style="margin-bottom:12px"></div>
-            <button class="btn btn-red" onclick="deleteDate()" style="width:100%;justify-content:center">🗑 삭제</button>
+            <button class="btn btn-red" id="btn-delete-date" style="width:100%;justify-content:center">🗑 삭제</button>
           </div>
           <div style="margin-top:14px">
             <div class="sec-title" style="font-size:12px;margin-bottom:8px">📅 업로드 날짜 목록</div>
@@ -230,8 +230,8 @@ tbody tr:hover td{background:var(--bg3);}
         <div class="card-hd">
           <div class="card-title">이슈 현황 <span style="color:var(--tx3);font-weight:400;font-size:11px" id="issue-cmp-lbl"></span></div>
           <div class="card-tools">
-            <input type="text" id="issue-search" placeholder="바코드/코드 검색..." style="width:180px" oninput="renderIssues()">
-            <select id="issue-type-f" onchange="renderIssues()">
+            <input type="text" id="issue-search" placeholder="바코드/코드 검색..." style="width:180px" >
+            <select id="issue-type-f" >
               <option value="">전체 유형</option>
               <option value="신규상품">신규 상품</option>
               <option value="코드변경">코드 변경</option>
@@ -240,7 +240,7 @@ tbody tr:hover td{background:var(--bg3);}
               <option value="유통기한변경">유통기한 변경</option>
               <option value="재고부족">재고 부족</option>
             </select>
-            <select id="issue-act-f" onchange="renderIssues()">
+            <select id="issue-act-f" >
               <option value="">전체 처리상태</option>
               <option value="__unhandled__">미처리</option>
               <option value="품절처리">품절처리</option>
@@ -267,7 +267,7 @@ tbody tr:hover td{background:var(--bg3);}
         <div class="card-hd">
           <div class="card-title">유통기한 임박</div>
           <div class="card-tools">
-            <input type="text" id="expiry-search" placeholder="바코드 검색..." style="width:160px" oninput="renderExpiry()">
+            <input type="text" id="expiry-search" placeholder="바코드 검색..." style="width:160px" >
           </div>
         </div>
         <div class="tbl-wrap">
@@ -287,7 +287,7 @@ tbody tr:hover td{background:var(--bg3);}
         <div class="card-hd">
           <div class="card-title">판매 종료 목록</div>
           <div class="card-tools">
-            <input type="text" id="closed-search" placeholder="바코드 검색..." style="width:160px" oninput="renderClosed()">
+            <input type="text" id="closed-search" placeholder="바코드 검색..." style="width:160px" >
           </div>
         </div>
         <div class="tbl-wrap">
@@ -307,12 +307,12 @@ tbody tr:hover td{background:var(--bg3);}
         <div class="card-hd" style="flex-direction:column;align-items:flex-start;gap:10px">
           <div class="card-title">이슈 히스토리</div>
           <div class="card-tools" style="flex-wrap:wrap">
-            <input type="date" id="hist-from" onchange="renderHistory()">
+            <input type="date" id="hist-from" >
             <span style="color:var(--tx3);font-size:11px">~</span>
-            <input type="date" id="hist-to" onchange="renderHistory()">
-            <input type="text" id="hist-bc" placeholder="원바코드" style="width:130px" oninput="renderHistory()">
-            <input type="text" id="hist-ic" placeholder="아이템코드" style="width:110px" oninput="renderHistory()">
-            <select id="hist-act" onchange="renderHistory()">
+            <input type="date" id="hist-to" >
+            <input type="text" id="hist-bc" placeholder="원바코드" style="width:130px" >
+            <input type="text" id="hist-ic" placeholder="아이템코드" style="width:110px" >
+            <select id="hist-act" >
               <option value="">전체 처리상태</option>
               <option value="__unhandled__">미처리</option>
               <option value="품절처리">품절처리</option>
@@ -320,7 +320,7 @@ tbody tr:hover td{background:var(--bg3);}
               <option value="확인완료">확인완료</option>
               <option value="보류">보류</option>
             </select>
-            <button class="btn btn-sm" onclick="clearHistFilter()">초기화</button>
+            <button class="btn btn-sm" id="btn-hist-clear">초기화</button>
             <span style="font-size:11px;color:var(--tx3);font-family:var(--mono)" id="hist-count"></span>
           </div>
         </div>
@@ -341,13 +341,13 @@ tbody tr:hover td{background:var(--bg3);}
         <div class="card-hd">
           <div class="card-title">재고 현황 <span style="color:var(--tx3);font-weight:400;font-size:11px" id="stock-lbl"></span></div>
           <div class="card-tools">
-            <input type="text" id="stock-search" placeholder="검색..." style="width:160px" oninput="renderStock()">
-            <select id="stock-sort" onchange="renderStock()">
+            <input type="text" id="stock-search" placeholder="검색..." style="width:160px" >
+            <select id="stock-sort" >
               <option value="barcode">바코드순</option>
               <option value="qty_asc">재고 낮은순</option>
               <option value="exp_asc">유통기한 빠른순</option>
             </select>
-            <select id="stock-filter" onchange="renderStock()">
+            <select id="stock-filter" >
               <option value="">전체</option>
               <option value="low">재고 부족만</option>
               <option value="expiring">유통기한 임박만</option>
@@ -387,7 +387,7 @@ tbody tr:hover td{background:var(--bg3);}
           <div class="setting-row"><div><div class="setting-label">유통기한 열</div></div><input type="text" id="cfg-col-exp" value="BQ" style="width:60px;text-align:center"></div>
           <div class="setting-row"><div><div class="setting-label">비고 열</div></div><input type="text" id="cfg-col-note" value="BY" style="width:60px;text-align:center"></div>
         </div>
-        <button class="btn btn-acc" onclick="saveSettings()" style="width:100%;justify-content:center">저장</button>
+        <button class="btn btn-acc" id="btn-save-settings" style="width:100%;justify-content:center">저장</button>
       </div>
     </div>
 
@@ -458,6 +458,28 @@ let cfg={expMonths:6,lowStock:100,colBc:'C',colIc:'D',colQty:'CI',colExp:'BQ',co
   document.getElementById('hist-to').value=today;
   const f=new Date();f.setDate(f.getDate()-30);
   document.getElementById('hist-from').value=dateStr(f);
+
+  // ── 이벤트 직접 바인딩 (module scope 안전) ──
+  document.getElementById('file-input').addEventListener('change', e=>{const f=e.target.files[0];if(f)readFile(f);});
+  document.getElementById('upload-zone').addEventListener('dragover', e=>{e.preventDefault();document.getElementById('upload-zone').classList.add('dragover');});
+  document.getElementById('upload-zone').addEventListener('dragleave', ()=>document.getElementById('upload-zone').classList.remove('dragover'));
+  document.getElementById('upload-zone').addEventListener('drop', e=>{e.preventDefault();document.getElementById('upload-zone').classList.remove('dragover');const f=e.dataTransfer.files[0];if(f)readFile(f);});
+  document.getElementById('btn-run-upload')?.addEventListener('click', runUpload);
+  document.getElementById('btn-delete-date')?.addEventListener('click', deleteDate);
+  document.getElementById('btn-export-csv')?.addEventListener('click', exportCSV);
+  document.getElementById('btn-clear-all')?.addEventListener('click', clearAll);
+  document.getElementById('btn-save-settings')?.addEventListener('click', saveSettings);
+  document.getElementById('btn-hist-clear')?.addEventListener('click', clearHistFilter);
+  document.getElementById('delete-date')?.addEventListener('change', renderDeletePreview);
+  // search/filter live
+  ['issue-search','issue-type-f','issue-act-f'].forEach(id=>document.getElementById(id)?.addEventListener('input',renderIssues));
+  ['issue-type-f','issue-act-f'].forEach(id=>document.getElementById(id)?.addEventListener('change',renderIssues));
+  ['expiry-search'].forEach(id=>document.getElementById(id)?.addEventListener('input',renderExpiry));
+  ['closed-search'].forEach(id=>document.getElementById(id)?.addEventListener('input',renderClosed));
+  ['hist-from','hist-to','hist-act'].forEach(id=>document.getElementById(id)?.addEventListener('change',renderHistory));
+  ['hist-bc','hist-ic'].forEach(id=>document.getElementById(id)?.addEventListener('input',renderHistory));
+  ['stock-sort','stock-filter'].forEach(id=>document.getElementById(id)?.addEventListener('change',renderStock));
+  document.getElementById('stock-search')?.addEventListener('input',renderStock);
 })();
 
 async function loadCache(){
