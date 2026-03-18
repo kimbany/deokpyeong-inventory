@@ -1124,13 +1124,17 @@ async function runAnalysis() {
     hideLoading();
     updateDBInfo();
 
-    renderTodayPanel(newIssues, todayMap, yestMap);
+    // 오늘 날짜 전체 이슈 (기존 + 신규) 를 패널에 표시
+    const allTodayIssues = dbGet('dp_issues_v2', []).filter(i => i.date === todayDate);
+    renderTodayPanel(allTodayIssues, todayMap, yestMap);
     renderActiveIssues();
     renderHistory();
     renderInventory();
     updateNavBadges();
 
-    gotoPanel('today', document.querySelector('.nav-item:nth-child(2)'));
+    gotoPanel('today', document.querySelector('[onclick="gotoPanel(\'today\',this)"]'));
+    // 컨텐츠 영역 스크롤 최상단
+    setTimeout(() => { const c = document.getElementById('content'); if(c) c.scrollTop = 0; }, 50);
     toast(`분석 완료 — 이슈 ${newIssues.length}건 Firebase 저장`, 'success');
     document.getElementById('status-msg').textContent =
       `마지막 분석: ${todayDate} | 오늘 이슈 ${newIssues.length}건 | ☁️ Firebase 동기화 완료`;
@@ -1156,7 +1160,7 @@ function daysBetween(d1, d2) {
 //  RENDER: TODAY PANEL
 // ═══════════════════════════════════════════════════════════
 function renderTodayPanel(newIssues, todayMap, yestMap) {
-  // Metrics
+  // newIssues = 선택 날짜의 전체 이슈 목록
   const newProds = newIssues.filter(i => i.type === '신규상품').length;
   const expiring = newIssues.filter(i => i.type === '유통기한임박').length;
   const lowStock = newIssues.filter(i => i.type === '재고부족발생' || i.type === '재고부족유지').length;
@@ -1512,7 +1516,11 @@ function gotoPanel(id, el) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   if (el) el.classList.add('active');
-  document.getElementById('panel-'+id).classList.add('active');
+  const target = document.getElementById('panel-'+id);
+  if (target) target.classList.add('active');
+  // 스크롤 최상단으로 이동
+  const contentEl = document.getElementById('content');
+  if (contentEl) contentEl.scrollTop = 0;
   const titles = { upload:'파일 업로드', today:'오늘 현황', issues:'이슈 현황', history:'이슈 히스토리', inventory:'전체 재고', settings:'설정' };
   document.getElementById('topbar-title').textContent = titles[id] || id;
   document.getElementById('topbar-sub').textContent = id === 'today' && todayDate ? ` — ${todayDate}` : '';
