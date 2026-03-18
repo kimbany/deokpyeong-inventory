@@ -427,6 +427,7 @@ window._C=C;
 
 // ── APP STATE ──
 let curRows=[],prevRows=[],latestDate='',prevDate='',pendingRows=null;
+window._getPendingRows=()=>pendingRows;
 let cfg={expMonths:6,lowStock:100,colBc:'C',colIc:'D',colQty:'CI',colExp:'BQ',colNote:'BY'};
 
 // ── INIT ──
@@ -574,17 +575,18 @@ function parseCSV(text){
 function cellsToRows(cells){
   const cBc=colIdx(cfg.colBc),cIc=colIdx(cfg.colIc),cQty=colIdx(cfg.colQty),cExp=colIdx(cfg.colExp),cFb1=colIdx('BZ'),cFb2=colIdx('CA'),cNote=colIdx(cfg.colNote);
   let maxR=0;for(const k of cells.keys()){const r=parseInt(k);if(r>maxR)maxR=r;}
-  // 데이터 시작 행 자동 탐지: 바코드 컬럼에 숫자/코드가 있는 첫 행 찾기
+  // 데이터 시작 행 자동 탐지: 바코드 컬럼에 값이 있는 첫 행 찾기 (헤더 제외)
+  const HEADER_VALS=new Set(['원바코드','barcode','바코드','품목코드','상품코드','순번','a','b','c','d']);
   let startR=0;
   for(let r=0;r<=Math.min(maxR,20);r++){
     const v=String(cells.get(`${r},${cBc}`)??'').trim();
-    if(v&&v!=='원바코드'&&/^[A-Za-z0-9]{4,}$/.test(v)){startR=r;break;}
+    if(v&&!HEADER_VALS.has(v.toLowerCase())&&v.length>=4){startR=r;break;}
   }
   const rows=[];
   for(let r=startR;r<=maxR;r++){
     const bc=String(cells.get(`${r},${cBc}`)??'').trim();
-    if(!bc||bc==='원바코드'||bc==='barcode')continue;
-    if(!/^[A-Za-z0-9]{4,}$/.test(bc))continue;
+    if(!bc||HEADER_VALS.has(bc.toLowerCase()))continue;
+    if(bc.length<4)continue;
     const ic=String(cells.get(`${r},${cIc}`)??'').trim();
     const qRaw=cells.get(`${r},${cQty}`);
     const qty=qRaw!=null&&!isNaN(parseFloat(qRaw))?parseFloat(qRaw):null;
