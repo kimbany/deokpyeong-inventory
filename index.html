@@ -442,23 +442,6 @@ let cfg={expMonths:6,lowStock:100,colBc:'C',colIc:'D',colQty:'CI',colExp:'BQ',co
   window.doDragOver=doDragOver; window.doDragLeave=doDragLeave; window.doDrop=doDrop;
   window.renderDeletePreview=renderDeletePreview;
 
-  showLoad('Firebase 연결 중...');
-  try{
-    await loadCache();
-    applyCfg();
-    refreshLatest();
-    renderAll();
-    updateSidebar();
-    setStatus('연결됨',true);
-  }catch(e){console.error(e);setStatus('오류: '+e.message,false);}
-  hideLoad();
-
-  const today=dateStr(new Date());
-  document.getElementById('upload-date').value=today;
-  document.getElementById('hist-to').value=today;
-  const f=new Date();f.setDate(f.getDate()-30);
-  document.getElementById('hist-from').value=dateStr(f);
-
   // ── 이벤트 직접 바인딩 (module scope 안전) ──
   document.getElementById('file-input').addEventListener('change', e=>{const f=e.target.files[0];if(f)readFile(f);});
   document.getElementById('upload-zone').addEventListener('dragover', e=>{e.preventDefault();document.getElementById('upload-zone').classList.add('dragover');});
@@ -481,6 +464,23 @@ let cfg={expMonths:6,lowStock:100,colBc:'C',colIc:'D',colQty:'CI',colExp:'BQ',co
   ['stock-sort','stock-filter'].forEach(id=>document.getElementById(id)?.addEventListener('change',renderStock));
   document.getElementById('stock-search')?.addEventListener('input',renderStock);
 })();
+  showLoad('Firebase 연결 중...');
+  try{
+    await loadCache();
+    applyCfg();
+    refreshLatest();
+    renderAll();
+    updateSidebar();
+    setStatus('연결됨',true);
+  }catch(e){console.error(e);setStatus('오류: '+e.message,false);}
+  hideLoad();
+
+  const today=dateStr(new Date());
+  document.getElementById('upload-date').value=today;
+  document.getElementById('hist-to').value=today;
+  const f=new Date();f.setDate(f.getDate()-30);
+  document.getElementById('hist-from').value=dateStr(f);
+
 
 async function loadCache(){
   const[a,b,c,d,e,f]=await Promise.all([
