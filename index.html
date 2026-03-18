@@ -541,9 +541,10 @@ const PATH = {
 async function fbGet(path, def = null) {
   try {
     const snap = await get(ref(_db, path));
+    console.log('[fbGet]', path, '→', snap.exists() ? '데이터 있음' : '비어있음');
     return snap.exists() ? snap.val() : def;
   } catch(e) {
-    console.warn('fbGet error', path, e);
+    console.error('[fbGet 에러]', path, e.code, e.message);
     return def;
   }
 }
