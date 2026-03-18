@@ -537,11 +537,16 @@ function parseXLS(buf){
         const nb=cch*(dbl?2:1);let s='';
         if(dbl){for(let j=0;j<cch;j++)s+=String.fromCharCode(comb[sp+j*2]|(comb[sp+j*2+1]<<8));}
         else{
-          // cp949 디코딩 시도, 실패시 latin-1 폴백
           const bytes=new Uint8Array(comb.slice(sp,sp+cch));
-          try{s=new TextDecoder('cp949').decode(bytes);}
-          catch{try{s=new TextDecoder('latin1').decode(bytes);}catch{s='';}}
-          // 숫자 바코드인 경우 그대로 사용
+          try{
+            s=new TextDecoder('cp949').decode(bytes);
+            // 디코딩 결과가 제어문자 포함이면 latin1 재시도
+            if(/[\x00-\x08\x0e-\x1f]/.test(s)){
+              s=new TextDecoder('latin1').decode(bytes);
+            }
+          }catch{
+            try{s=new TextDecoder('latin1').decode(bytes);}catch{s='';}
+          }
         }
         sp+=nb+rc*4+el;sst.push(s);
       }
