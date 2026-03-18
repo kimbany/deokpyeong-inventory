@@ -286,23 +286,56 @@ input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); curso
 
       <!-- ════ UPLOAD ════ -->
       <div class="panel active" id="panel-upload">
+        <!-- 날짜 선택 -->
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin-bottom:16px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:12px;">📅 업로드 날짜 선택</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">기준 파일 날짜 <span style="color:var(--accent)">*</span></div>
+              <input type="date" id="upload-date-today" style="width:100%" oninput="onUploadDateChange()">
+              <div style="font-size:11px;color:var(--text3);margin-top:4px;">분석할 파일의 날짜</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">비교 파일 날짜 <span style="color:var(--text3)">(선택)</span></div>
+              <input type="date" id="upload-date-yest" style="width:100%" oninput="onUploadDateChange()">
+              <div style="font-size:11px;color:var(--text3);margin-top:4px;">비워두면 Firebase에서 전날 자동 탐색</div>
+            </div>
+          </div>
+        </div>
         <div class="upload-grid">
           <div>
-            <div class="section-hd"><div><div class="section-title">📄 오늘 파일 (최신)</div><div class="section-sub">분석 기준 파일</div></div></div>
+            <div class="section-hd"><div><div class="section-title">📄 기준 파일</div><div class="section-sub" id="upload-today-label">날짜를 먼저 선택하세요</div></div></div>
             <div class="upload-zone" id="zone-today" ondragover="dov(event,'zone-today')" ondragleave="dol('zone-today')" ondrop="dop(event,'today')">
               <input type="file" accept=".xls,.xlsx,.csv" onchange="loadFile(event,'today')">
               <div class="upload-icon">📄</div>
-              <div class="upload-title">오늘 재고 파일 업로드</div>
+              <div class="upload-title">재고 파일 업로드</div>
               <div class="upload-sub">.xls / .xlsx / .csv 드래그 또는 클릭</div>
               <div id="today-status" style="margin-top:10px;font-size:11px;color:var(--text3)"></div>
             </div>
           </div>
           <div>
-            <div class="section-hd"><div><div class="section-title">📁 어제 파일 (비교용)</div><div class="section-sub">변동사항 감지에 사용 (선택)</div></div></div>
+            <div class="section-hd"><div><div class="section-title">📁 비교 파일</div><div class="section-sub" id="upload-yest-label">선택사항</div></div></div>
             <div class="upload-zone" id="zone-yest" ondragover="dov(event,'zone-yest')" ondragleave="dol('zone-yest')" ondrop="dop(event,'yest')">
               <input type="file" accept=".xls,.xlsx,.csv" onchange="loadFile(event,'yest')">
               <div class="upload-icon">📁</div>
-              <div class="upload-title">어제 재고 파일 업로드</div>
+              <div class="upload-title">비교 파일 업로드</div>
+              <div class="upload-sub">.xls / .xlsx / .csv 드래그 또는 클릭</div>
+              <div id="yest-status" style="margin-top:10px;font-size:11px;color:var(--text3)"></div>
+            </div>
+          </div>
+        </div>
+              <div class="upload-icon">📄</div>
+              <div class="upload-title">재고 파일 업로드</div>
+              <div class="upload-sub">.xls / .xlsx / .csv 드래그 또는 클릭</div>
+              <div id="today-status" style="margin-top:10px;font-size:11px;color:var(--text3)"></div>
+            </div>
+          </div>
+          <div>
+            <div class="section-hd"><div><div class="section-title">📁 비교 파일</div><div class="section-sub" id="upload-yest-label">선택사항</div></div></div>
+            <div class="upload-zone" id="zone-yest" ondragover="dov(event,'zone-yest')" ondragleave="dol('zone-yest')" ondrop="dop(event,'yest')">
+              <input type="file" accept=".xls,.xlsx,.csv" onchange="loadFile(event,'yest')">
+              <div class="upload-icon">📁</div>
+              <div class="upload-title">비교 파일 업로드</div>
               <div class="upload-sub">.xls / .xlsx / .csv 드래그 또는 클릭</div>
               <div id="yest-status" style="margin-top:10px;font-size:11px;color:var(--text3)"></div>
             </div>
@@ -364,7 +397,7 @@ input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); curso
             </div>
           </div>
           <table><thead><tr>
-            <th>상태</th><th>원바코드</th><th>아이템코드</th><th>이슈 유형</th><th>상세</th><th>최초 발생</th><th>지속일수</th>
+            <th>상태</th><th>원바코드</th><th>아이템코드</th><th>이슈 유형</th><th>상세</th><th>발생일</th><th>지속</th><th>반영 처리</th>
           </tr></thead>
           <tbody id="tbody-issues"></tbody></table>
         </div>
@@ -387,12 +420,19 @@ input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); curso
             <option value="재고부족유지">재고 부족 유지</option>
             <option value="재고보충">재고 보충</option>
           </select>
+          <select id="hist-reflected" onchange="renderHistory()">
+            <option value="">전체 반영상태</option>
+            <option value="미처리">미처리</option>
+            <option value="품절처리">품절처리</option>
+            <option value="재오픈">재오픈</option>
+            <option value="보류">보류</option>
+          </select>
           <button class="btn btn-sm" onclick="document.getElementById('hist-date').value='';renderHistory()">전체</button>
           <span class="ml-auto text-mono text-muted" id="hist-count"></span>
         </div>
         <div class="tbl-wrap">
           <table><thead><tr>
-            <th>날짜</th><th>원바코드</th><th>아이템코드</th><th>이슈 유형</th><th>상세 내용</th>
+            <th>이슈 발생일</th><th>원바코드</th><th>아이템코드</th><th>이슈 유형</th><th>상세 내용</th><th>반영 처리</th><th>처리일</th>
           </tr></thead>
           <tbody id="tbody-history"></tbody></table>
         </div>
@@ -473,6 +513,16 @@ input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); curso
 let todayRows = [], yesterdayRows = [], todayDate = '', settings = {};
 let todayFile = null, yestFile = null;
 
+// ── 날짜 선택 핸들러 ──────────────────────────────────────
+function onUploadDateChange() {
+  const d1 = document.getElementById('upload-date-today').value;
+  const d2 = document.getElementById('upload-date-yest').value;
+  const lbl1 = document.getElementById('upload-today-label');
+  const lbl2 = document.getElementById('upload-yest-label');
+  if (lbl1) lbl1.textContent = d1 ? d1 + ' 기준' : '날짜를 먼저 선택하세요';
+  if (lbl2) lbl2.textContent = d2 ? d2 + ' 비교' : '선택사항 (미입력시 자동 탐색)';
+}
+
 // ═══════════════════════════════════════════════════════════
 //  FIREBASE REALTIME DATABASE
 // ═══════════════════════════════════════════════════════════
@@ -539,9 +589,11 @@ let _cache = { issues: {}, states: {}, settings: {} };
 async function initCache() {
   showLoading('Firebase 데이터 불러오는 중...');
   try {
-    _cache.issues   = await fbGet('issues',   {}) || {};
-    _cache.states   = await fbGet('states',   {}) || {};
-    _cache.settings = await fbGet('settings', {}) || {};
+    _cache.issues    = await fbGet('issues',    {}) || {};
+    _cache.states    = await fbGet('states',    {}) || {};
+    _cache.settings  = await fbGet('settings',  {}) || {};
+    _cache.snapshots = await fbGet('snapshots', {}) || {};
+    _cache.reflected = await fbGet('reflected', {}) || {};
   } catch(e) { console.error('initCache error', e); }
   hideLoading();
 }
@@ -937,7 +989,11 @@ async function runAnalysis() {
   showLoading('분석 중...');
 
   try {
-    todayDate = new Date().toISOString().slice(0, 10);
+    // 날짜 선택값 우선 사용, 없으면 오늘
+    const selDate = document.getElementById('upload-date-today')?.value;
+    todayDate = selDate || new Date().toISOString().slice(0, 10);
+    // 비교 날짜: 선택값 또는 Firebase에서 바로 전날 탐색
+    const selYestDate = document.getElementById('upload-date-yest')?.value;
     const newIssues = [];
 
     const todayMap = buildMap(todayRows);
@@ -947,6 +1003,19 @@ async function runAnalysis() {
     const stateDB = Object.fromEntries(
       Object.entries(_cache.states).map(([k,v]) => [k.replace(/_/g,'.'), v])
     );
+
+    // 비교 파일이 없으면 Firebase에서 전일 스냅샷 탐색
+    if (!yesterdayRows.length) {
+      const snapshots = _cache.snapshots || {};
+      // 선택 날짜 또는 todayDate 이전 가장 최근 날짜 탐색
+      const refDate = selYestDate || todayDate;
+      const prevDates = Object.keys(snapshots).filter(d => d < refDate).sort();
+      const prevDate  = prevDates[prevDates.length - 1];
+      if (prevDate && snapshots[prevDate]?.rows) {
+        yesterdayRows = snapshots[prevDate].rows;
+        toast(`전일 스냅샷 자동 로드: ${prevDate}`, 'success');
+      }
+    }
 
     // 오늘 이미 저장된 이슈 키 (중복 방지)
     const todayExisting = _cache.issues[todayDate] || {};
@@ -1036,8 +1105,9 @@ async function runAnalysis() {
       writes.push(fbUpdate('states', stateUpdates));
     }
 
-    // 3) 스냅샷 저장: /snapshots/{date} (행 수만 저장, 용량 절약)
+    // 3) 스냅샷 저장: /snapshots/{date} (rows 포함 저장 — 전일 비교용)
     writes.push(fbSet(PATH.snapshot(todayDate), {
+      rows: todayRows,
       rowCount: todayRows.length,
       uploadedAt: new Date().toISOString(),
       file: todayFile || ''
@@ -1046,9 +1116,10 @@ async function runAnalysis() {
     await Promise.all(writes);
 
     // 캐시 갱신
-    _cache.states  = await fbGet('states',  {}) || {};
-    _cache.issues  = await fbGet('issues',  {}) || {};
+    _cache.states    = await fbGet('states',    {}) || {};
+    _cache.issues    = await fbGet('issues',    {}) || {};
     _cache.snapshots = await fbGet('snapshots', {}) || {};
+    _cache.reflected = await fbGet('reflected', {}) || {};
 
     hideLoading();
     updateDBInfo();
@@ -1155,6 +1226,55 @@ function renderTodayPanel(newIssues, todayMap, yestMap) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  REFLECTED ACTIONS (반영 처리)
+// ═══════════════════════════════════════════════════════════
+const ACTION_LABELS = {
+  '': '미처리',
+  '품절처리': '품절 처리',
+  '재오픈': '재오픈',
+  '보류': '보류'
+};
+const ACTION_TAGS = {
+  '': 'tag-gray',
+  '품절처리': 'tag-red',
+  '재오픈': 'tag-green',
+  '보류': 'tag-amber'
+};
+
+async function setReflected(issueKey, action) {
+  // issueKey = "date|type|barcode"  (stored in reflected/ path)
+  const now = new Date().toISOString().slice(0,10);
+  const safeKey = issueKey.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  await fbSet(`reflected/${safeKey}`, { action, reflectedAt: now, issueKey });
+  // Update cache
+  if (!_cache.reflected) _cache.reflected = {};
+  _cache.reflected[safeKey] = { action, reflectedAt: now, issueKey };
+  renderActiveIssues();
+  renderHistory();
+  toast(`반영 처리: ${ACTION_LABELS[action] || action}`, 'success');
+}
+
+function getReflected(date, type, barcode) {
+  if (!_cache.reflected) return null;
+  const issueKey = `${date}|${type}|${barcode}`;
+  const safeKey  = issueKey.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  return _cache.reflected[safeKey] || null;
+}
+
+function actionDropdown(date, type, barcode) {
+  const r = getReflected(date, type, barcode);
+  const cur = r?.action || '';
+  const safeId = `${date}_${type}_${barcode}`.replace(/[^a-zA-Z0-9_]/g,'_');
+  return `<select id="sel_${safeId}" onchange="setReflected('${date}|${type}|${barcode}', this.value)"
+    style="font-size:11px;padding:3px 7px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);cursor:pointer;">
+    <option value="" ${cur===''?'selected':''}>미처리</option>
+    <option value="품절처리" ${cur==='품절처리'?'selected':''}>품절 처리</option>
+    <option value="재오픈" ${cur==='재오픈'?'selected':''}>재오픈</option>
+    <option value="보류" ${cur==='보류'?'selected':''}>보류</option>
+  </select>`;
+}
+
+// ═══════════════════════════════════════════════════════════
 //  RENDER: ACTIVE ISSUES
 // ═══════════════════════════════════════════════════════════
 function renderActiveIssues() {
@@ -1225,8 +1345,10 @@ function renderActiveIssues() {
   const typeTag = { 재고부족:'tag-red', 유통기한임박:'tag-amber', 아이템코드변경:'tag-purple', 신규상품:'tag-blue' };
   const typeDot = { 재고부족:'red', 유통기한임박:'amber', 아이템코드변경:'amber', 신규상품:'green' };
 
-  tbody.innerHTML = filtered.map(i =>
-    `<tr>
+  tbody.innerHTML = filtered.map(i => {
+    const r = getReflected(i.since, i.type, i.bc);
+    const tagCls = ACTION_TAGS[r?.action||''] || 'tag-gray';
+    return `<tr>
       <td><div class="state-indicator"><div class="state-dot ${typeDot[i.type]||'amber'}"></div></div></td>
       <td class="td-mono">${i.bc}</td>
       <td class="td-mono">${i.itemcode||'—'}</td>
@@ -1234,8 +1356,9 @@ function renderActiveIssues() {
       <td style="font-size:11px;color:var(--text2)">${i.detail}</td>
       <td class="td-mono">${i.since}</td>
       <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${i.days}일</td>
-    </tr>`
-  ).join('');
+      <td>${actionDropdown(i.since, i.type, i.bc)}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1246,9 +1369,16 @@ function renderHistory() {
   const selDate  = document.getElementById('hist-date')?.value || '';
   const selType  = document.getElementById('hist-type')?.value || '';
 
+  const selReflected = document.getElementById('hist-reflected')?.value || '';
   let filtered = issuesDB;
   if (selDate) filtered = filtered.filter(i => i.date === selDate);
   if (selType) filtered = filtered.filter(i => i.type === selType);
+  if (selReflected) {
+    filtered = filtered.filter(i => {
+      const r = getReflected(i.date, i.type, i.barcode);
+      return (r?.action || '') === selReflected;
+    });
+  }
   filtered = [...filtered].reverse();
 
   document.getElementById('hist-count').textContent = `${filtered.length}건`;
@@ -1263,15 +1393,21 @@ function renderHistory() {
   empty.style.display = 'none';
 
   const typeTag = { 신규상품:'tag-blue', 아이템코드변경:'tag-purple', 유통기한임박:'tag-amber', 재고부족발생:'tag-red', 재고부족유지:'tag-amber', 재고보충:'tag-green' };
-  tbody.innerHTML = filtered.map(i =>
-    `<tr>
+  tbody.innerHTML = filtered.map(i => {
+    const r = getReflected(i.date, i.type, i.barcode);
+    const action = r?.action || '';
+    const tagCls = ACTION_TAGS[action] || 'tag-gray';
+    const reflAt = r?.reflectedAt || '';
+    return `<tr>
       <td class="td-mono">${i.date}</td>
       <td class="td-mono">${i.barcode}</td>
       <td class="td-mono">${i.itemcode||'—'}</td>
       <td><span class="tag ${typeTag[i.type]||'tag-gray'}">${i.type}</span></td>
       <td style="font-size:11px;color:var(--text2)">${i.detail}</td>
-    </tr>`
-  ).join('');
+      <td><span class="tag ${tagCls}">${ACTION_LABELS[action]||'미처리'}</span></td>
+      <td class="td-mono" style="color:var(--text3)">${reflAt||'—'}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1414,8 +1550,9 @@ async function clearDB() {
     fbRemove('issues'),
     fbRemove('states'),
     fbRemove('snapshots'),
+    fbRemove('reflected'),
   ]);
-  _cache = { issues: {}, states: {}, settings: _cache.settings };
+  _cache = { issues: {}, states: {}, settings: _cache.settings, snapshots: {}, reflected: {} };
   hideLoading();
   updateDBInfo();
   renderActiveIssues();
@@ -1438,6 +1575,9 @@ async function clearDB() {
 
   const todayStr = new Date().toISOString().slice(0,10);
   document.getElementById('hist-date').value = todayStr;
+  // 업로드 날짜 기본값 = 오늘
+  const uploadDateEl = document.getElementById('upload-date-today');
+  if (uploadDateEl) { uploadDateEl.value = todayStr; onUploadDateChange(); }
 
   document.getElementById('status-msg').textContent =
     '☁️ Firebase 연결 완료 — 파일을 업로드하여 분석을 시작하세요';
