@@ -599,18 +599,11 @@ function cellsToRows(cells){
     const v=String(cells.get(`${r},${cBc}`)??'').trim();
     if(v==='원바코드'||v==='barcode'||v==='바코드'){headerR=r;break;}
   }
-  // 헤더 다음부터 값 있는 행 탐색
+  // 헤더 다음부터 값 있는 행 탐색 (maxR까지 전체)
   const searchStart = headerR>=0 ? headerR+1 : 0;
-  for(let r=searchStart;r<=Math.min(maxR,headerR+10);r++){
+  for(let r=searchStart;r<=maxR;r++){
     const v=String(cells.get(`${r},${cBc}`)??'').trim();
-    if(v&&v.length>=4){startR=r;break;}
-  }
-  // 헤더가 없으면 처음부터 값 있는 행 탐색
-  if(startR===0&&headerR<0){
-    for(let r=0;r<=Math.min(maxR,20);r++){
-      const v=String(cells.get(`${r},${cBc}`)??'').trim();
-      if(v&&v.length>=4){startR=r;break;}
-    }
+    if(v&&v.length>=4&&v!=='원바코드'&&v!=='barcode'){startR=r;break;}
   }
   console.log('[cellsToRows] headerR:', headerR, 'startR:', startR, 'maxR:', maxR);
   const rows=[];
