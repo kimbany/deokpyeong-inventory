@@ -558,10 +558,10 @@ function parseXLS(buf){
   while(pos<wb.length-4){const rt=wru16(pos),rl=wru16(pos+2);if(rt===0x00E0)xfFmts.push(wru16(pos+6));pos+=4+rl;}
   const DATEFMT=new Set([14,15,16,17,18,19,20,21,22,27,28,29,30,31,32,33,34,35,36,45,46,47,50,51,52,53,54,55,56,57,58]);
   function xlDate(n){
-    if(!n||n<=0) return null;  // 0이하는 날짜 아님
+    if(n===null||n===undefined||n===0) return null;  // 0은 날짜 아님 (1899-12-30)
     const d=new Date(Date.UTC(1899,11,30)+Math.round(n)*86400000);
     const y=d.getUTCFullYear();
-    if(y<2000||y>2100) return null;  // 유효하지 않은 날짜
+    if(y<1990||y>2100) return null;  // 유효하지 않은 날짜 범위
     return d.toISOString().slice(0,10);
   }
   const sheets=[];pos=0;
@@ -576,11 +576,11 @@ function parseXLS(buf){
     const rt=wru16(pos),rl=wru16(pos+2),rec=pos+4;
     if(rt===0x000A)break;
     if(rt===0x00FD){const r=wru16(rec),c=wru16(rec+2),si=wru32(rec+6);if(si<sst.length)cells.set(`${r},${c}`,sst[si]);}
-    else if(rt===0x0203){const r=wru16(rec),c=wru16(rec+2),xf=wru16(rec+4),v=wrdbl(rec+6);cells.set(`${r},${c}`,DATEFMT.has(xfFmts[xf]??0)?xlDate(v):v);}
+    else if(rt===0x0203){const r=wru16(rec),c=wru16(rec+2),xf=wru16(rec+4),v=wrdbl(rec+6);{const _dv=DATEFMT.has(xfFmts[xf]??0)?xlDate(v):v;if(_dv!==null)cells.set(`${r},${c}`,_dv);}}
     else if(rt===0x027E){
       const r=wru16(rec),c=wru16(rec+2),xf=wru16(rec+4),rk=wru32(rec+6);
       let v;if(rk&2)v=rk>>2;else{const b=new ArrayBuffer(8);new DataView(b).setUint32(4,rk&0xFFFFFFFC,true);v=wdv.getFloat64(0,true);}
-      if(rk&1)v/=100;cells.set(`${r},${c}`,DATEFMT.has(xfFmts[xf]??0)?xlDate(v):v);
+      if(rk&1)v/=100;{const _dv=DATEFMT.has(xfFmts[xf]??0)?xlDate(v):v;if(_dv!==null)cells.set(`${r},${c}`,_dv);}
     }
     else if(rt===0x0204){const r=wru16(rec),c=wru16(rec+2),len=wru16(rec+6);try{cells.set(`${r},${c}`,new TextDecoder('cp949').decode(wb.subarray(rec+8,rec+8+len)));}catch{}}
     pos+=4+rl;
