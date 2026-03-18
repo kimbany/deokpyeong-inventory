@@ -1581,6 +1581,21 @@ async function clearDB() {
 
   document.getElementById('status-msg').textContent =
     '☁️ Firebase 연결 완료 — 파일을 업로드하여 분석을 시작하세요';
+  // ── HTML onclick/onchange에서 접근 가능하도록 전역 노출 (IIFE 안) ──
+  window.loadFile          = loadFile;
+  window.dov               = dov;
+  window.dol               = dol;
+  window.dop               = dop;
+  window.runAnalysis       = runAnalysis;
+  window.gotoPanel         = gotoPanel;
+  window.saveSettings      = saveSettings;
+  window.clearDB           = clearDB;
+  window.exportCSV         = exportCSV;
+  window.renderActiveIssues= renderActiveIssues;
+  window.renderHistory     = renderHistory;
+  window.renderInventory   = renderInventory;
+  window.onUploadDateChange= onUploadDateChange;
+  window.setReflected      = setReflected;
 })();
 </script>
 </body>
