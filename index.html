@@ -574,10 +574,17 @@ function parseCSV(text){
 function cellsToRows(cells){
   const cBc=colIdx(cfg.colBc),cIc=colIdx(cfg.colIc),cQty=colIdx(cfg.colQty),cExp=colIdx(cfg.colExp),cFb1=colIdx('BZ'),cFb2=colIdx('CA'),cNote=colIdx(cfg.colNote);
   let maxR=0;for(const k of cells.keys()){const r=parseInt(k);if(r>maxR)maxR=r;}
+  // 데이터 시작 행 자동 탐지: 바코드 컬럼에 숫자/코드가 있는 첫 행 찾기
+  let startR=0;
+  for(let r=0;r<=Math.min(maxR,20);r++){
+    const v=String(cells.get(`${r},${cBc}`)??'').trim();
+    if(v&&v!=='원바코드'&&/^[A-Za-z0-9]{4,}$/.test(v)){startR=r;break;}
+  }
   const rows=[];
-  for(let r=4;r<=maxR;r++){
+  for(let r=startR;r<=maxR;r++){
     const bc=String(cells.get(`${r},${cBc}`)??'').trim();
-    if(!bc||bc==='원바코드')continue;
+    if(!bc||bc==='원바코드'||bc==='barcode')continue;
+    if(!/^[A-Za-z0-9]{4,}$/.test(bc))continue;
     const ic=String(cells.get(`${r},${cIc}`)??'').trim();
     const qRaw=cells.get(`${r},${cQty}`);
     const qty=qRaw!=null&&!isNaN(parseFloat(qRaw))?parseFloat(qRaw):null;
