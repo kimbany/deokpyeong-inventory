@@ -591,21 +591,32 @@ function cellsToRows(cells){
   console.log('[cellsToRows] total cells:', cells.size, 'sample:', sample);
   const cBc=colIdx(cfg.colBc),cIc=colIdx(cfg.colIc),cQty=colIdx(cfg.colQty),cExp=colIdx(cfg.colExp),cFb1=colIdx('BZ'),cFb2=colIdx('CA'),cNote=colIdx(cfg.colNote);
   let maxR=0;for(const k of cells.keys()){const r=parseInt(k);if(r>maxR)maxR=r;}
-  // 데이터 시작 행 자동 탐지: 바코드 컬럼에 값이 있는 첫 행 찾기 (헤더 제외)
-  const HEADER_VALS=new Set(['원바코드','barcode','바코드','품목코드','상품코드','순번','a','b','c','d']);
-  let startR=0;
+  // 데이터 시작 행 자동 탐지
+  // 1) 먼저 헤더행(원바코드) 위치 찾기
+  // 2) 헤더 다음 행부터 실제 값이 있는 행을 startR로
+  let headerR=-1, startR=0;
   for(let r=0;r<=Math.min(maxR,20);r++){
     const v=String(cells.get(`${r},${cBc}`)??'').trim();
-    if(v&&!HEADER_VALS.has(v.toLowerCase())&&v.length>=4){startR=r;break;}
+    if(v==='원바코드'||v==='barcode'||v==='바코드'){headerR=r;break;}
   }
-  console.log('[cellsToRows] startR:', startR, 'maxR:', maxR, 'cBc:', cBc);
-  // Show first 5 rows at cBc column
-  for(let r=startR;r<=Math.min(startR+5,maxR);r++) console.log(`  row${r} bc:`, cells.get(`${r},${cBc}`));
+  // 헤더 다음부터 값 있는 행 탐색
+  const searchStart = headerR>=0 ? headerR+1 : 0;
+  for(let r=searchStart;r<=Math.min(maxR,headerR+10);r++){
+    const v=String(cells.get(`${r},${cBc}`)??'').trim();
+    if(v&&v.length>=4){startR=r;break;}
+  }
+  // 헤더가 없으면 처음부터 값 있는 행 탐색
+  if(startR===0&&headerR<0){
+    for(let r=0;r<=Math.min(maxR,20);r++){
+      const v=String(cells.get(`${r},${cBc}`)??'').trim();
+      if(v&&v.length>=4){startR=r;break;}
+    }
+  }
+  console.log('[cellsToRows] headerR:', headerR, 'startR:', startR, 'maxR:', maxR);
   const rows=[];
   for(let r=startR;r<=maxR;r++){
     const bc=String(cells.get(`${r},${cBc}`)??'').trim();
-    if(!bc||HEADER_VALS.has(bc.toLowerCase()))continue;
-    if(bc.length<4)continue;
+    if(!bc||bc==='원바코드'||bc==='barcode'||bc.length<4)continue;
     const ic=String(cells.get(`${r},${cIc}`)??'').trim();
     const qRaw=cells.get(`${r},${cQty}`);
     const qty=qRaw!=null&&!isNaN(parseFloat(qRaw))?parseFloat(qRaw):null;
