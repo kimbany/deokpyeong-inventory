@@ -492,7 +492,7 @@ async function loadCache(){
 }
 
 // ── COL INDEX ──
-const colIdx=s=>{s=s.trim().toUpperCase();let n=0;for(const c of s)n=n*26+(c.charCodeAt(0)-64);return n-1;};
+function colIdx(s){s=s.trim().toUpperCase();let n=0;for(const c of s)n=n*26+(c.charCodeAt(0)-64);return n-1;}
 
 // ── XLS BIFF8 PARSER ──
 function parseXLS(buf){
@@ -1056,9 +1056,9 @@ async function clearAll(){
 }
 
 // ── UTILS ──
-const dateStr=d=>d.toISOString().slice(0,10);
-const daysDiff=(d1,d2)=>Math.max(0,Math.ceil((new Date(d2)-new Date(d1))/86400000));
-const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function dateStr(d){return d.toISOString().slice(0,10);}
+function daysDiff(d1,d2){return Math.max(0,Math.ceil((new Date(d2)-new Date(d1))/86400000));}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function showLoad(msg='로딩 중...'){document.getElementById('loading-msg').textContent=msg;document.getElementById('loading').classList.add('show');}
 function hideLoad(){document.getElementById('loading').classList.remove('show');}
 function toast(msg,type=''){const el=document.getElementById('toast');el.textContent=msg;el.className=type?`show ${type}`:'show';clearTimeout(el._t);el._t=setTimeout(()=>el.className='',2800);}
