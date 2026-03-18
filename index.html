@@ -1107,8 +1107,9 @@ async function runAnalysis() {
     hideLoading();
     updateDBInfo();
 
-    // 오늘 날짜 전체 이슈 (기존 + 신규) 를 패널에 표시
-    const allTodayIssues = dbGet('dp_issues_v2', []).filter(i => i.date === todayDate);
+    // 오늘 날짜 전체 이슈 - _cache에서 직접 읽기
+    const dayCache = _cache.issues[todayDate] || {};
+    const allTodayIssues = Object.values(dayCache);
     renderTodayPanel(allTodayIssues, todayMap, yestMap);
     renderActiveIssues();
     renderHistory();
@@ -1265,62 +1266,76 @@ function actionDropdown(date, type, barcode) {
 //  RENDER: ACTIVE ISSUES
 // ═══════════════════════════════════════════════════════════
 function renderActiveIssues() {
-  const stateDB  = dbGet('dp_state_v2', {});
-  const issuesDB = dbGet('dp_issues_v2', []);
-  const search   = (document.getElementById('issue-search')?.value || '').toLowerCase();
-  const typeF    = document.getElementById('issue-type-filter')?.value || '';
+  const search = (document.getElementById('issue-search')?.value || '').toLowerCase();
+  const typeF  = document.getElementById('issue-type-filter')?.value || '';
+  const today  = new Date().toISOString().slice(0,10);
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
 
-  // Build active issue list from state + recent issues
-  const activeIssues = [];
-  const seen = new Set();
-
-  // Persistent state issues (lowStock ongoing)
-  for (const [bc, state] of Object.entries(stateDB)) {
-    if (state.lowStock) {
-      const key = `재고부족|${bc}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        const days = daysBetween(state.since, new Date().toISOString().slice(0,10));
-        activeIssues.push({ bc, itemcode: state.itemcode, type: '재고부족', detail: `재고 ${state.qty}개 (${days}일째 지속)`, since: state.since, days });
+  // _cache.issues 에서 직접 flat array 생성 (최근 60일)
+  const allIssues = [];
+  for (const [date, dayObj] of Object.entries(_cache.issues || {})) {
+    if (new Date(date) < cutoff) continue;
+    if (dayObj && typeof dayObj === 'object') {
+      for (const issue of Object.values(dayObj)) {
+        if (issue && issue.barcode) allIssues.push(issue);
       }
     }
   }
 
-  // Recent issues (last 30 days, non-resolved types)
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+  // 바코드+유형 기준으로 가장 최신 이슈만 남기기 (재고보충 제외)
   const latestByKey = {};
-  for (const i of issuesDB) {
-    if (new Date(i.date) < cutoff) continue;
-    if (i.type === '재고보충' || i.type === '재고부족유지') continue;
+  for (const i of allIssues) {
+    if (i.type === '재고보충') continue;
     const key = `${i.type}|${i.barcode}`;
     if (!latestByKey[key] || i.date > latestByKey[key].date) latestByKey[key] = i;
   }
-  for (const i of Object.values(latestByKey)) {
-    const key = `${i.type}|${i.barcode}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      activeIssues.push({ bc: i.barcode, itemcode: i.itemcode, type: i.type, detail: i.detail, since: i.date, days: daysBetween(i.date, new Date().toISOString().slice(0,10)) });
+
+  // 재고 보충된 항목 제거 (재고보충 이슈가 있으면 재고부족 계열 제거)
+  const resolvedBarcodes = new Set(
+    allIssues.filter(i => i.type === '재고보충').map(i => `${i.barcode}|${i.date}`)
+  );
+  // 재고보충 날짜 이후의 재고부족은 표시 안 함
+  const rechargedMap = {};
+  for (const i of allIssues) {
+    if (i.type === '재고보충') {
+      if (!rechargedMap[i.barcode] || i.date > rechargedMap[i.barcode]) rechargedMap[i.barcode] = i.date;
     }
   }
 
-  // Filter
+  let activeIssues = Object.values(latestByKey)
+    .filter(i => {
+      // 재고부족 계열이면 보충된 이후건 제외
+      if (i.type === '재고부족발생' || i.type === '재고부족유지') {
+        const rechargedDate = rechargedMap[i.barcode];
+        if (rechargedDate && rechargedDate >= i.date) return false;
+      }
+      return true;
+    })
+    .map(i => ({
+      bc: i.barcode, itemcode: i.itemcode, type: i.type,
+      detail: i.detail, since: i.date,
+      days: daysBetween(i.date, today)
+    }))
+    .sort((a,b) => b.since.localeCompare(a.since));
+
+  // 필터
   const filtered = activeIssues.filter(i => {
     if (search && !i.bc.toLowerCase().includes(search) && !(i.itemcode||'').toLowerCase().includes(search)) return false;
-    if (typeF && !i.type.includes(typeF.replace('재고부족', '재고'))) return false;
+    if (typeF  && !i.type.includes(typeF)) return false;
     return true;
   });
 
-  // Alert summary
-  const lowCount = activeIssues.filter(i => i.type === '재고부족').length;
+  // 상단 알림 배너
+  const lowCount = activeIssues.filter(i => i.type === '재고부족발생' || i.type === '재고부족유지').length;
   const expCount = activeIssues.filter(i => i.type === '유통기한임박').length;
   let alertHtml = '';
-  if (lowCount) alertHtml += `<div class="alert-card red"><div class="alert-icon">📉</div><div><div class="alert-title">재고 부족 상태 유지 중 ${lowCount}건</div><div class="alert-body">재고 ${settings.lowStock}개 이하 상태 지속</div></div></div>`;
-  if (expCount) alertHtml += `<div class="alert-card amber"><div class="alert-icon">⏰</div><div><div class="alert-title">유통기한 임박 활성 ${expCount}건</div><div class="alert-body">${settings.expMonths}개월 내 만료 예정</div></div></div>`;
+  if (lowCount) alertHtml += `<div class="alert-card red"><div class="alert-icon">📉</div><div><div class="alert-title">재고 부족 ${lowCount}건</div><div class="alert-body">재고 ${settings.lowStock}개 이하</div></div></div>`;
+  if (expCount) alertHtml += `<div class="alert-card amber"><div class="alert-icon">⏰</div><div><div class="alert-title">유통기한 임박 ${expCount}건</div><div class="alert-body">${settings.expMonths}개월 내 만료 예정</div></div></div>`;
   document.getElementById('active-state-alerts').innerHTML = alertHtml;
 
+  document.getElementById('nb-issues').textContent = activeIssues.length;
   const tbody = document.getElementById('tbody-issues');
   const empty = document.getElementById('empty-issues');
-  document.getElementById('nb-issues').textContent = activeIssues.length;
 
   if (!filtered.length) {
     tbody.innerHTML = '';
@@ -1329,12 +1344,11 @@ function renderActiveIssues() {
   }
   empty.style.display = 'none';
 
-  const typeTag = { 재고부족:'tag-red', 유통기한임박:'tag-amber', 아이템코드변경:'tag-purple', 신규상품:'tag-blue' };
-  const typeDot = { 재고부족:'red', 유통기한임박:'amber', 아이템코드변경:'amber', 신규상품:'green' };
+  const typeTag = { 재고부족발생:'tag-red', 재고부족유지:'tag-amber', 유통기한임박:'tag-amber', 아이템코드변경:'tag-purple', 신규상품:'tag-blue' };
+  const typeDot = { 재고부족발생:'red', 재고부족유지:'red', 유통기한임박:'amber', 아이템코드변경:'amber', 신규상품:'green' };
 
   tbody.innerHTML = filtered.map(i => {
     const r = getReflected(i.since, i.type, i.bc);
-    const tagCls = ACTION_TAGS[r?.action||''] || 'tag-gray';
     return `<tr>
       <td><div class="state-indicator"><div class="state-dot ${typeDot[i.type]||'amber'}"></div></div></td>
       <td class="td-mono">${i.bc}</td>
@@ -1352,7 +1366,15 @@ function renderActiveIssues() {
 //  RENDER: HISTORY
 // ═══════════════════════════════════════════════════════════
 function renderHistory() {
-  const issuesDB = dbGet('dp_issues_v2', []);
+  // _cache.issues에서 직접 flat array 생성
+  const issuesDB = [];
+  for (const [date, dayObj] of Object.entries(_cache.issues || {})) {
+    if (dayObj && typeof dayObj === 'object') {
+      for (const issue of Object.values(dayObj)) {
+        if (issue && issue.barcode) issuesDB.push(issue);
+      }
+    }
+  }
   const selDate  = document.getElementById('hist-date')?.value || '';
   const selType  = document.getElementById('hist-type')?.value || '';
 
@@ -1465,12 +1487,16 @@ function renderInventory() {
 //  UTILS
 // ═══════════════════════════════════════════════════════════
 function updateNavBadges() {
-  const issues = dbGet('dp_issues_v2', []);
-  const state  = dbGet('dp_state_v2', {});
-  const today  = new Date().toISOString().slice(0,10);
-  const todayIssues = issues.filter(i => i.date === today);
+  const today = new Date().toISOString().slice(0,10);
+  const dayObj = _cache.issues?.[today] || {};
+  const todayIssues = Object.values(dayObj).filter(i => i && i.barcode);
   document.getElementById('nb-today').textContent = todayIssues.length;
-  document.getElementById('nb-issues').textContent = Object.values(state).filter(s=>s.lowStock).length + todayIssues.filter(i=>i.type==='유통기한임박').length;
+  // 이슈 현황 배지: 전체 활성 이슈 수
+  let activeCount = 0;
+  for (const [date, dObj] of Object.entries(_cache.issues || {})) {
+    if (dObj) activeCount += Object.values(dObj).filter(i=>i&&i.type&&i.type!=='재고보충').length;
+  }
+  document.getElementById('nb-issues').textContent = todayIssues.length;
   document.getElementById('nb-inv').textContent = todayRows.length;
 }
 
