@@ -591,21 +591,18 @@ function cellsToRows(cells){
   console.log('[cellsToRows] total cells:', cells.size, 'sample:', sample);
   const cBc=colIdx(cfg.colBc),cIc=colIdx(cfg.colIc),cQty=colIdx(cfg.colQty),cExp=colIdx(cfg.colExp),cFb1=colIdx('BZ'),cFb2=colIdx('CA'),cNote=colIdx(cfg.colNote);
   let maxR=0;for(const k of cells.keys()){const r=parseInt(k);if(r>maxR)maxR=r;}
-  // 데이터 시작 행 자동 탐지
-  // 1) 먼저 헤더행(원바코드) 위치 찾기
-  // 2) 헤더 다음 행부터 실제 값이 있는 행을 startR로
-  let headerR=-1, startR=0;
-  for(let r=0;r<=Math.min(maxR,20);r++){
+  // 헤더가 4~6행(0-based: 3~5)에 걸쳐 있고 데이터는 그 이후부터 시작
+  // 전략: C열(바코드)에 실제 바코드값이 있는 첫 행을 startR로 결정
+  // 바코드 판별: 숫자로만 구성된 8자리 이상 OR 영숫자 혼합 코드
+  let startR=0;
+  for(let r=0;r<=maxR;r++){
     const v=String(cells.get(`${r},${cBc}`)??'').trim();
-    if(v==='원바코드'||v==='barcode'||v==='바코드'){headerR=r;break;}
+    // 실제 바코드: 숫자 8자리 이상, 또는 영문+숫자 4자리 이상
+    if(v && (/^\d{8,}$/.test(v) || /^[A-Za-z]{1,3}\d{3,}$/.test(v) || /^[A-Za-z0-9]{6,}$/.test(v))){
+      startR=r; break;
+    }
   }
-  // 헤더 다음부터 값 있는 행 탐색 (maxR까지 전체)
-  const searchStart = headerR>=0 ? headerR+1 : 0;
-  for(let r=searchStart;r<=maxR;r++){
-    const v=String(cells.get(`${r},${cBc}`)??'').trim();
-    if(v&&v.length>=4&&v!=='원바코드'&&v!=='barcode'){startR=r;break;}
-  }
-  console.log('[cellsToRows] headerR:', headerR, 'startR:', startR, 'maxR:', maxR);
+  console.log('[cellsToRows] startR:', startR, 'maxR:', maxR, 'cBc:', cBc, 'first bc:', cells.get(`${startR},${cBc}`));
   const rows=[];
   for(let r=startR;r<=maxR;r++){
     const bc=String(cells.get(`${r},${cBc}`)??'').trim();
