@@ -286,18 +286,17 @@ input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); curso
 
       <!-- ════ UPLOAD ════ -->
       <div class="panel active" id="panel-upload">
-        <!-- 날짜 선택 -->
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin-bottom:16px;">
           <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:12px;">📅 업로드 날짜 선택</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
             <div>
               <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">기준 파일 날짜 <span style="color:var(--accent)">*</span></div>
-              <input type="date" id="upload-date-today" style="width:100%" oninput="onUploadDateChange()">
+              <input type="date" id="upload-date-today" style="width:100%">
               <div style="font-size:11px;color:var(--text3);margin-top:4px;">분석할 파일의 날짜</div>
             </div>
             <div>
               <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">비교 파일 날짜 <span style="color:var(--text3)">(선택)</span></div>
-              <input type="date" id="upload-date-yest" style="width:100%" oninput="onUploadDateChange()">
+              <input type="date" id="upload-date-yest" style="width:100%">
               <div style="font-size:11px;color:var(--text3);margin-top:4px;">비워두면 Firebase에서 전날 자동 탐색</div>
             </div>
           </div>
@@ -403,7 +402,7 @@ input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); curso
             <option value="재고부족유지">재고 부족 유지</option>
             <option value="재고보충">재고 보충</option>
           </select>
-          <select id="hist-reflected" onchange="renderHistory()">
+          <select id="hist-reflected" onchange="renderHistory()" style="font-size:12px">
             <option value="">전체 반영상태</option>
             <option value="미처리">미처리</option>
             <option value="품절처리">품절처리</option>
@@ -496,14 +495,14 @@ input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); curso
 let todayRows = [], yesterdayRows = [], todayDate = '', settings = {};
 let todayFile = null, yestFile = null;
 
-// ── 날짜 선택 핸들러 ──────────────────────────────────────
+// 날짜 선택 핸들러
 function onUploadDateChange() {
-  const d1 = document.getElementById('upload-date-today').value;
-  const d2 = document.getElementById('upload-date-yest').value;
+  const d1 = document.getElementById('upload-date-today')?.value || '';
+  const d2 = document.getElementById('upload-date-yest')?.value || '';
   const lbl1 = document.getElementById('upload-today-label');
   const lbl2 = document.getElementById('upload-yest-label');
-  if (lbl1) lbl1.textContent = d1 ? d1 + ' 기준' : '날짜를 먼저 선택하세요';
-  if (lbl2) lbl2.textContent = d2 ? d2 + ' 비교' : '선택사항 (미입력시 자동 탐색)';
+  if (lbl1) lbl1.textContent = d1 ? d1 + ' 기준 파일' : '날짜를 먼저 선택하세요';
+  if (lbl2) lbl2.textContent = d2 ? d2 + ' 비교 파일' : '선택사항';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -541,10 +540,9 @@ const PATH = {
 async function fbGet(path, def = null) {
   try {
     const snap = await get(ref(_db, path));
-    console.log('[fbGet]', path, '→', snap.exists() ? '데이터 있음' : '비어있음');
     return snap.exists() ? snap.val() : def;
   } catch(e) {
-    console.error('[fbGet 에러]', path, e.code, e.message);
+    console.warn('fbGet error', path, e);
     return def;
   }
 }
@@ -568,21 +566,30 @@ async function fbRemove(path) {
 }
 
 // ── 로컬 캐시 (렌더링 속도용) ──────────────────────────────
-window._cache = { issues: {}, states: {}, settings: {} };
+window._cache = { issues: {}, states: {}, settings: {}, snapshots: {}, reflected: {} };
 const _cache = window._cache;
 
 async function initCache() {
   showLoading('Firebase 데이터 불러오는 중...');
   try {
-    _cache.issues    = await fbGet('issues',    {}) || {};
-    _cache.states    = await fbGet('states',    {}) || {};
-    _cache.settings  = await fbGet('settings',  {}) || {};
-    _cache.snapshots = await fbGet('snapshots', {}) || {};
-    _cache.reflected = await fbGet('reflected', {}) || {};
+    const [issues, states, settings, snapshots, reflected] = await Promise.all([
+      fbGet('issues',    {}),
+      fbGet('states',    {}),
+      fbGet('settings',  {}),
+      fbGet('snapshots', {}),
+      fbGet('reflected', {}),
+    ]);
+    Object.assign(_cache, {
+      issues:    issues    || {},
+      states:    states    || {},
+      settings:  settings  || {},
+      snapshots: snapshots || {},
+      reflected: reflected || {},
+    });
   } catch(e) { console.error('initCache error', e); }
-  // 디버그: 캐시 로드 결과 확인
-  const issueCount = Object.values(_cache.issues || {}).reduce((s, d) => s + (d ? Object.keys(d).length : 0), 0);
-  console.log('[Cache loaded] issues:', issueCount, '건 | states:', Object.keys(_cache.states||{}).length, '건');
+  // 로드 결과 확인
+  const issueCount = Object.values(_cache.issues).reduce((s,d)=>s+(d?Object.keys(d).length:0),0);
+  console.log('[Cache loaded] issues:', issueCount, '건 | states:', Object.keys(_cache.states).length, '건');
   hideLoading();
 }
 
@@ -977,33 +984,29 @@ async function runAnalysis() {
   showLoading('분석 중...');
 
   try {
-    // 날짜 선택값 우선 사용, 없으면 오늘
     const selDate = document.getElementById('upload-date-today')?.value;
     todayDate = selDate || new Date().toISOString().slice(0, 10);
-    // 비교 날짜: 선택값 또는 Firebase에서 바로 전날 탐색
     const selYestDate = document.getElementById('upload-date-yest')?.value;
     const newIssues = [];
 
     const todayMap = buildMap(todayRows);
+
+    // 비교 파일 없으면 Firebase 스냅샷에서 전날 자동 탐색
+    if (!yesterdayRows.length) {
+      const refDate = selYestDate || todayDate;
+      const prevDates = Object.keys(_cache.snapshots || {}).filter(d => d < refDate).sort();
+      const prevDate  = prevDates[prevDates.length - 1];
+      if (prevDate && _cache.snapshots[prevDate]?.rows) {
+        yesterdayRows = _cache.snapshots[prevDate].rows;
+        toast('전일 스냅샷 자동 로드: ' + prevDate, 'success');
+      }
+    }
     const yestMap  = buildMap(yesterdayRows);
 
     // 상태 DB (바코드 키의 '.'을 '_'로 치환해서 RTDB 경로 사용)
     const stateDB = Object.fromEntries(
       Object.entries(_cache.states).map(([k,v]) => [k.replace(/_/g,'.'), v])
     );
-
-    // 비교 파일이 없으면 Firebase에서 전일 스냅샷 탐색
-    if (!yesterdayRows.length) {
-      const snapshots = _cache.snapshots || {};
-      // 선택 날짜 또는 todayDate 이전 가장 최근 날짜 탐색
-      const refDate = selYestDate || todayDate;
-      const prevDates = Object.keys(snapshots).filter(d => d < refDate).sort();
-      const prevDate  = prevDates[prevDates.length - 1];
-      if (prevDate && snapshots[prevDate]?.rows) {
-        yesterdayRows = snapshots[prevDate].rows;
-        toast(`전일 스냅샷 자동 로드: ${prevDate}`, 'success');
-      }
-    }
 
     // 오늘 이미 저장된 이슈 키 (중복 방지)
     const todayExisting = _cache.issues[todayDate] || {};
@@ -1093,28 +1096,27 @@ async function runAnalysis() {
       writes.push(fbUpdate('states', stateUpdates));
     }
 
-    // 3) 스냅샷 저장: /snapshots/{date} (rows 포함 저장 — 전일 비교용)
+    // 3) 스냅샷 저장: /snapshots/{date} — rows 포함 (전일 비교용)
     writes.push(fbSet(PATH.snapshot(todayDate), {
       rows: todayRows,
       rowCount: todayRows.length,
       uploadedAt: new Date().toISOString(),
-      file: todayFile || ''
     }));
 
     await Promise.all(writes);
 
     // 캐시 갱신
-    _cache.states    = await fbGet('states',    {}) || {};
-    _cache.issues    = await fbGet('issues',    {}) || {};
-    _cache.snapshots = await fbGet('snapshots', {}) || {};
-    _cache.reflected = await fbGet('reflected', {}) || {};
+    const [ri, rs, rn, rr] = await Promise.all([
+      fbGet('issues',    {}), fbGet('states',    {}),
+      fbGet('snapshots', {}), fbGet('reflected', {}),
+    ]);
+    Object.assign(_cache, { issues: ri||{}, states: rs||{}, snapshots: rn||{}, reflected: rr||{} });
 
     hideLoading();
     updateDBInfo();
 
-    // 오늘 날짜 전체 이슈 - _cache에서 직접 읽기
-    const dayCache = _cache.issues[todayDate] || {};
-    const allTodayIssues = Object.values(dayCache);
+    // 오늘 날짜 전체 이슈 (기존+신규) 렌더
+    const allTodayIssues = Object.values(_cache.issues[todayDate] || {}).filter(i=>i&&i.barcode);
     renderTodayPanel(allTodayIssues, todayMap, yestMap);
     renderActiveIssues();
     renderHistory();
@@ -1122,8 +1124,7 @@ async function runAnalysis() {
     updateNavBadges();
 
     gotoPanel('today', document.querySelector('[onclick="gotoPanel(\'today\',this)"]'));
-    // 컨텐츠 영역 스크롤 최상단
-    setTimeout(() => { const c = document.getElementById('content'); if(c) c.scrollTop = 0; }, 50);
+    setTimeout(()=>{ const c=document.getElementById('content'); if(c) c.scrollTop=0; },50);
     toast(`분석 완료 — 이슈 ${newIssues.length}건 Firebase 저장`, 'success');
     document.getElementById('status-msg').textContent =
       `마지막 분석: ${todayDate} | 오늘 이슈 ${newIssues.length}건 | ☁️ Firebase 동기화 완료`;
@@ -1149,7 +1150,7 @@ function daysBetween(d1, d2) {
 //  RENDER: TODAY PANEL
 // ═══════════════════════════════════════════════════════════
 function renderTodayPanel(newIssues, todayMap, yestMap) {
-  // newIssues = 선택 날짜의 전체 이슈 목록
+  // Metrics
   const newProds = newIssues.filter(i => i.type === '신규상품').length;
   const expiring = newIssues.filter(i => i.type === '유통기한임박').length;
   const lowStock = newIssues.filter(i => i.type === '재고부족발생' || i.type === '재고부족유지').length;
@@ -1157,7 +1158,7 @@ function renderTodayPanel(newIssues, todayMap, yestMap) {
 
   document.getElementById('m-total').textContent = todayMap.size || todayRows.length || '—';
   document.getElementById('m-total-d').textContent = yesterdayRows.length
-    ? `전일 ${yestMap.size}개` : (todayMap.size ? '비교 없음' : '');
+    ? `전일 ${yestMap.size}개` : '';
   document.getElementById('m-new').textContent = newProds;
   document.getElementById('m-expiry').textContent = expiring;
   document.getElementById('m-low').textContent = lowStock;
@@ -1221,45 +1222,32 @@ function renderTodayPanel(newIssues, todayMap, yestMap) {
 // ═══════════════════════════════════════════════════════════
 //  REFLECTED ACTIONS (반영 처리)
 // ═══════════════════════════════════════════════════════════
-const ACTION_LABELS = {
-  '': '미처리',
-  '품절처리': '품절 처리',
-  '재오픈': '재오픈',
-  '보류': '보류'
-};
-const ACTION_TAGS = {
-  '': 'tag-gray',
-  '품절처리': 'tag-red',
-  '재오픈': 'tag-green',
-  '보류': 'tag-amber'
-};
+const ACTION_LABELS = { '':'미처리', '품절처리':'품절 처리', '재오픈':'재오픈', '보류':'보류' };
+const ACTION_TAGS   = { '':'tag-gray', '품절처리':'tag-red', '재오픈':'tag-green', '보류':'tag-amber' };
 
 async function setReflected(issueKey, action) {
-  // issueKey = "date|type|barcode"  (stored in reflected/ path)
-  const now = new Date().toISOString().slice(0,10);
-  const safeKey = issueKey.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const now    = new Date().toISOString().slice(0,10);
+  const safeKey = issueKey.replace(/[^a-zA-Z0-9_\-]/g,'_');
   await fbSet(`reflected/${safeKey}`, { action, reflectedAt: now, issueKey });
-  // Update cache
   if (!_cache.reflected) _cache.reflected = {};
   _cache.reflected[safeKey] = { action, reflectedAt: now, issueKey };
   renderActiveIssues();
   renderHistory();
-  toast(`반영 처리: ${ACTION_LABELS[action] || action}`, 'success');
+  toast(`반영 처리: ${ACTION_LABELS[action]||action}`, 'success');
 }
 
 function getReflected(date, type, barcode) {
   if (!_cache.reflected) return null;
-  const issueKey = `${date}|${type}|${barcode}`;
-  const safeKey  = issueKey.replace(/[^a-zA-Z0-9_\-]/g, '_');
-  return _cache.reflected[safeKey] || null;
+  const key = `${date}|${type}|${barcode}`.replace(/[^a-zA-Z0-9_\-]/g,'_');
+  return _cache.reflected[key] || null;
 }
 
 function actionDropdown(date, type, barcode) {
-  const r = getReflected(date, type, barcode);
+  const r   = getReflected(date, type, barcode);
   const cur = r?.action || '';
-  const safeId = `${date}_${type}_${barcode}`.replace(/[^a-zA-Z0-9_]/g,'_');
-  return `<select id="sel_${safeId}" onchange="setReflected('${date}|${type}|${barcode}', this.value)"
-    style="font-size:11px;padding:3px 7px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);cursor:pointer;">
+  const id  = `${date}_${type}_${barcode}`.replace(/[^a-zA-Z0-9_]/g,'_');
+  return `<select onchange="setReflected('${date}|${type}|${barcode}',this.value)"
+    style="font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);cursor:pointer;">
     <option value="" ${cur===''?'selected':''}>미처리</option>
     <option value="품절처리" ${cur==='품절처리'?'selected':''}>품절 처리</option>
     <option value="재오픈" ${cur==='재오픈'?'selected':''}>재오픈</option>
@@ -1271,147 +1259,118 @@ function actionDropdown(date, type, barcode) {
 //  RENDER: ACTIVE ISSUES
 // ═══════════════════════════════════════════════════════════
 function renderActiveIssues() {
-  const search = (document.getElementById('issue-search')?.value || '').toLowerCase();
-  const typeF  = document.getElementById('issue-type-filter')?.value || '';
-  const today  = new Date().toISOString().slice(0,10);
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+  const search = (document.getElementById('issue-search')?.value||'').toLowerCase();
+  const typeF  = document.getElementById('issue-type-filter')?.value||'';
+  const todayStr = new Date().toISOString().slice(0,10);
 
-  // _cache.issues 에서 직접 flat array 생성 (최근 60일)
+  // _cache.issues에서 flat array 생성
   const allIssues = [];
-  for (const [date, dayObj] of Object.entries(_cache.issues || {})) {
-    if (new Date(date) < cutoff) continue;
-    if (dayObj && typeof dayObj === 'object') {
+  for (const [date, dayObj] of Object.entries(_cache.issues||{})) {
+    if (dayObj && typeof dayObj==='object') {
       for (const issue of Object.values(dayObj)) {
         if (issue && issue.barcode) allIssues.push(issue);
       }
     }
   }
 
-  // 바코드+유형 기준으로 가장 최신 이슈만 남기기 (재고보충 제외)
-  const latestByKey = {};
-  for (const i of allIssues) {
-    if (i.type === '재고보충') continue;
-    const key = `${i.type}|${i.barcode}`;
-    if (!latestByKey[key] || i.date > latestByKey[key].date) latestByKey[key] = i;
-  }
-
-  // 재고 보충된 항목 제거 (재고보충 이슈가 있으면 재고부족 계열 제거)
-  const resolvedBarcodes = new Set(
-    allIssues.filter(i => i.type === '재고보충').map(i => `${i.barcode}|${i.date}`)
-  );
-  // 재고보충 날짜 이후의 재고부족은 표시 안 함
+  // 보충된 바코드/날짜 기록
   const rechargedMap = {};
   for (const i of allIssues) {
-    if (i.type === '재고보충') {
-      if (!rechargedMap[i.barcode] || i.date > rechargedMap[i.barcode]) rechargedMap[i.barcode] = i.date;
+    if (i.type==='재고보충') {
+      if (!rechargedMap[i.barcode]||i.date>rechargedMap[i.barcode]) rechargedMap[i.barcode]=i.date;
     }
+  }
+
+  // 바코드+유형 기준 최신 이슈 (재고보충 제외)
+  const latestByKey = {};
+  for (const i of allIssues) {
+    if (i.type==='재고보충') continue;
+    const key = `${i.type}|${i.barcode}`;
+    if (!latestByKey[key]||i.date>latestByKey[key].date) latestByKey[key]=i;
   }
 
   let activeIssues = Object.values(latestByKey)
     .filter(i => {
-      // 재고부족 계열이면 보충된 이후건 제외
-      if (i.type === '재고부족발생' || i.type === '재고부족유지') {
-        const rechargedDate = rechargedMap[i.barcode];
-        if (rechargedDate && rechargedDate >= i.date) return false;
+      if (i.type==='재고부족발생'||i.type==='재고부족유지') {
+        const rd = rechargedMap[i.barcode];
+        if (rd && rd>=i.date) return false;
       }
       return true;
     })
-    .map(i => ({
-      bc: i.barcode, itemcode: i.itemcode, type: i.type,
-      detail: i.detail, since: i.date,
-      days: daysBetween(i.date, today)
-    }))
-    .sort((a,b) => b.since.localeCompare(a.since));
+    .map(i => ({ bc:i.barcode, itemcode:i.itemcode, type:i.type, detail:i.detail, since:i.date, days:daysBetween(i.date,todayStr) }))
+    .sort((a,b)=>b.since.localeCompare(a.since));
 
-  // 필터
   const filtered = activeIssues.filter(i => {
     if (search && !i.bc.toLowerCase().includes(search) && !(i.itemcode||'').toLowerCase().includes(search)) return false;
     if (typeF  && !i.type.includes(typeF)) return false;
     return true;
   });
 
-  // 상단 알림 배너
-  const lowCount = activeIssues.filter(i => i.type === '재고부족발생' || i.type === '재고부족유지').length;
-  const expCount = activeIssues.filter(i => i.type === '유통기한임박').length;
+  const lowCount = activeIssues.filter(i=>i.type==='재고부족발생'||i.type==='재고부족유지').length;
+  const expCount = activeIssues.filter(i=>i.type==='유통기한임박').length;
   let alertHtml = '';
   if (lowCount) alertHtml += `<div class="alert-card red"><div class="alert-icon">📉</div><div><div class="alert-title">재고 부족 ${lowCount}건</div><div class="alert-body">재고 ${settings.lowStock}개 이하</div></div></div>`;
   if (expCount) alertHtml += `<div class="alert-card amber"><div class="alert-icon">⏰</div><div><div class="alert-title">유통기한 임박 ${expCount}건</div><div class="alert-body">${settings.expMonths}개월 내 만료 예정</div></div></div>`;
   document.getElementById('active-state-alerts').innerHTML = alertHtml;
-
   document.getElementById('nb-issues').textContent = activeIssues.length;
+
   const tbody = document.getElementById('tbody-issues');
   const empty = document.getElementById('empty-issues');
-
-  if (!filtered.length) {
-    tbody.innerHTML = '';
-    empty.style.display = 'block';
-    return;
-  }
+  if (!filtered.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display = 'none';
 
   const typeTag = { 재고부족발생:'tag-red', 재고부족유지:'tag-amber', 유통기한임박:'tag-amber', 아이템코드변경:'tag-purple', 신규상품:'tag-blue' };
   const typeDot = { 재고부족발생:'red', 재고부족유지:'red', 유통기한임박:'amber', 아이템코드변경:'amber', 신규상품:'green' };
-
-  tbody.innerHTML = filtered.map(i => {
-    const r = getReflected(i.since, i.type, i.bc);
-    return `<tr>
-      <td><div class="state-indicator"><div class="state-dot ${typeDot[i.type]||'amber'}"></div></div></td>
-      <td class="td-mono">${i.bc}</td>
-      <td class="td-mono">${i.itemcode||'—'}</td>
-      <td><span class="tag ${typeTag[i.type]||'tag-gray'}">${i.type}</span></td>
-      <td style="font-size:11px;color:var(--text2)">${i.detail}</td>
-      <td class="td-mono">${i.since}</td>
-      <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${i.days}일</td>
-      <td>${actionDropdown(i.since, i.type, i.bc)}</td>
-    </tr>`;
-  }).join('');
+  tbody.innerHTML = filtered.map(i => `<tr>
+    <td><div class="state-indicator"><div class="state-dot ${typeDot[i.type]||'amber'}"></div></div></td>
+    <td class="td-mono">${i.bc}</td>
+    <td class="td-mono">${i.itemcode||'—'}</td>
+    <td><span class="tag ${typeTag[i.type]||'tag-gray'}">${i.type}</span></td>
+    <td style="font-size:11px;color:var(--text2)">${i.detail}</td>
+    <td class="td-mono">${i.since}</td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${i.days}일</td>
+    <td>${actionDropdown(i.since,i.type,i.bc)}</td>
+  </tr>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════════
 //  RENDER: HISTORY
 // ═══════════════════════════════════════════════════════════
 function renderHistory() {
-  // _cache.issues에서 직접 flat array 생성
+  const selDate      = document.getElementById('hist-date')?.value||'';
+  const selType      = document.getElementById('hist-type')?.value||'';
+  const selReflected = document.getElementById('hist-reflected')?.value||'';
+
+  // _cache.issues에서 flat array 생성
   const issuesDB = [];
-  for (const [date, dayObj] of Object.entries(_cache.issues || {})) {
-    if (dayObj && typeof dayObj === 'object') {
+  for (const [date, dayObj] of Object.entries(_cache.issues||{})) {
+    if (dayObj && typeof dayObj==='object') {
       for (const issue of Object.values(dayObj)) {
         if (issue && issue.barcode) issuesDB.push(issue);
       }
     }
   }
-  const selDate  = document.getElementById('hist-date')?.value || '';
-  const selType  = document.getElementById('hist-type')?.value || '';
 
-  const selReflected = document.getElementById('hist-reflected')?.value || '';
   let filtered = issuesDB;
-  if (selDate) filtered = filtered.filter(i => i.date === selDate);
-  if (selType) filtered = filtered.filter(i => i.type === selType);
-  if (selReflected) {
-    filtered = filtered.filter(i => {
-      const r = getReflected(i.date, i.type, i.barcode);
-      return (r?.action || '') === selReflected;
-    });
-  }
+  if (selDate)      filtered = filtered.filter(i=>i.date===selDate);
+  if (selType)      filtered = filtered.filter(i=>i.type===selType);
+  if (selReflected) filtered = filtered.filter(i=>{
+    const r = getReflected(i.date,i.type,i.barcode);
+    return (r?.action||'')=== selReflected;
+  });
   filtered = [...filtered].reverse();
 
-  document.getElementById('hist-count').textContent = `${filtered.length}건`;
+  document.getElementById('hist-count').textContent = filtered.length+'건';
   const tbody = document.getElementById('tbody-history');
   const empty = document.getElementById('empty-history');
-
-  if (!filtered.length) {
-    tbody.innerHTML = '';
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
+  if (!filtered.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
 
   const typeTag = { 신규상품:'tag-blue', 아이템코드변경:'tag-purple', 유통기한임박:'tag-amber', 재고부족발생:'tag-red', 재고부족유지:'tag-amber', 재고보충:'tag-green' };
   tbody.innerHTML = filtered.map(i => {
-    const r = getReflected(i.date, i.type, i.barcode);
-    const action = r?.action || '';
-    const tagCls = ACTION_TAGS[action] || 'tag-gray';
-    const reflAt = r?.reflectedAt || '';
+    const r      = getReflected(i.date,i.type,i.barcode);
+    const action = r?.action||'';
+    const tagCls = ACTION_TAGS[action]||'tag-gray';
     return `<tr>
       <td class="td-mono">${i.date}</td>
       <td class="td-mono">${i.barcode}</td>
@@ -1419,7 +1378,7 @@ function renderHistory() {
       <td><span class="tag ${typeTag[i.type]||'tag-gray'}">${i.type}</span></td>
       <td style="font-size:11px;color:var(--text2)">${i.detail}</td>
       <td><span class="tag ${tagCls}">${ACTION_LABELS[action]||'미처리'}</span></td>
-      <td class="td-mono" style="color:var(--text3)">${reflAt||'—'}</td>
+      <td class="td-mono" style="color:var(--text3)">${r?.reflectedAt||'—'}</td>
     </tr>`;
   }).join('');
 }
@@ -1492,52 +1451,44 @@ function renderInventory() {
 //  UTILS
 // ═══════════════════════════════════════════════════════════
 function updateNavBadges() {
-  const today = new Date().toISOString().slice(0,10);
-  const dayObj = _cache.issues?.[today] || {};
-  const todayIssues = Object.values(dayObj).filter(i => i && i.barcode);
-  document.getElementById('nb-today').textContent = todayIssues.length;
-  // 이슈 현황 배지: 전체 활성 이슈 수
-  let activeCount = 0;
-  for (const [date, dObj] of Object.entries(_cache.issues || {})) {
-    if (dObj) activeCount += Object.values(dObj).filter(i=>i&&i.type&&i.type!=='재고보충').length;
-  }
-  document.getElementById('nb-issues').textContent = todayIssues.length;
-  document.getElementById('nb-inv').textContent = todayRows.length;
+  const today  = new Date().toISOString().slice(0,10);
+  const dayObj = _cache.issues?.[today]||{};
+  const cnt    = Object.values(dayObj).filter(i=>i&&i.barcode).length;
+  document.getElementById('nb-today').textContent  = cnt;
+  document.getElementById('nb-issues').textContent = cnt;
+  document.getElementById('nb-inv').textContent    = todayRows.length;
 }
 
 function updateDBInfo() {
-  const issues   = dbGet('dp_issues_v2', []);
-  const snaps    = _cache.snapshots || {};
-  const days     = Object.keys(snaps).length;
-  const last     = Object.keys(snaps).sort().pop() || '—';
-  document.getElementById('db-days').textContent   = days + '일';
-  document.getElementById('db-issues').textContent = issues.length + '건';
-  document.getElementById('db-last').textContent   = last.slice(5) || '—';
-
+  const snaps = _cache.snapshots||{};
+  const days  = Object.keys(snaps).length;
+  const last  = Object.keys(snaps).sort().pop()||'—';
+  const allI  = [];
+  for (const d of Object.values(_cache.issues||{})) if(d) for(const i of Object.values(d)) if(i&&i.barcode) allI.push(i);
+  document.getElementById('db-days').textContent   = days+'일';
+  document.getElementById('db-issues').textContent = allI.length+'건';
+  document.getElementById('db-last').textContent   = last.slice(5)||'—';
   const dbDetail = document.getElementById('db-detail');
   if (dbDetail) {
-    const byType = {};
-    for (const i of issues) byType[i.type] = (byType[i.type]||0) + 1;
-    dbDetail.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">` +
+    const byType={};
+    for(const i of allI) byType[i.type]=(byType[i.type]||0)+1;
+    dbDetail.innerHTML=`<div style="display:flex;flex-direction:column;gap:6px">`+
       (Object.entries(byType).length
-        ? Object.entries(byType).map(([t,n]) => `<div class="flex-row"><span style="flex:1">${t}</span><span class="text-mono">${n}건</span></div>`).join('')
-        : '<span style="color:var(--text3)">저장된 이슈 없음</span>') +
-      `</div>`;
+        ?Object.entries(byType).map(([t,n])=>`<div class="flex-row"><span style="flex:1">${t}</span><span class="text-mono">${n}건</span></div>`).join('')
+        :'<span style="color:var(--text3)">저장된 이슈 없음</span>')+`</div>`;
   }
 }
 
 function gotoPanel(id, el) {
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  if (el) el.classList.add('active');
-  const target = document.getElementById('panel-'+id);
-  if (target) target.classList.add('active');
-  // 스크롤 최상단으로 이동
-  const contentEl = document.getElementById('content');
-  if (contentEl) contentEl.scrollTop = 0;
-  const titles = { upload:'파일 업로드', today:'오늘 현황', issues:'이슈 현황', history:'이슈 히스토리', inventory:'전체 재고', settings:'설정' };
-  document.getElementById('topbar-title').textContent = titles[id] || id;
-  document.getElementById('topbar-sub').textContent = id === 'today' && todayDate ? ` — ${todayDate}` : '';
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const target=document.getElementById('panel-'+id);
+  if(target) target.classList.add('active');
+  const c=document.getElementById('content'); if(c) c.scrollTop=0;
+  const titles={upload:'파일 업로드',today:'오늘 현황',issues:'이슈 현황',history:'이슈 히스토리',inventory:'전체 재고',settings:'설정'};
+  document.getElementById('topbar-title').textContent=titles[id]||id;
+  document.getElementById('topbar-sub').textContent=id==='today'&&todayDate?` — ${todayDate}`:'';
 }
 
 function toast(msg, type = '') {
@@ -1553,7 +1504,8 @@ function showLoading(msg = '처리 중...') {
 function hideLoading() { document.getElementById('loading').classList.remove('show'); }
 
 function exportCSV() {
-  const issues = dbGet('dp_issues_v2', []);
+  const issues=[];
+  for(const d of Object.values(_cache.issues||{})) if(d) for(const i of Object.values(d)) if(i&&i.barcode) issues.push(i);
   if (!issues.length) { toast('내보낼 데이터가 없습니다', 'error'); return; }
   const hdr  = '날짜,원바코드,아이템코드,이슈유형,상세내용';
   const rows = issues.map(i => [i.date, i.barcode, i.itemcode||'', i.type, `"${i.detail}"`].join(','));
@@ -1568,13 +1520,8 @@ function exportCSV() {
 async function clearDB() {
   if (!confirm('Firebase의 모든 이슈 히스토리와 상태 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
   showLoading('Firebase 데이터 삭제 중...');
-  await Promise.all([
-    fbRemove('issues'),
-    fbRemove('states'),
-    fbRemove('snapshots'),
-    fbRemove('reflected'),
-  ]);
-  Object.assign(window._cache, { issues: {}, states: {}, snapshots: {}, reflected: {} });
+  await Promise.all([fbRemove('issues'),fbRemove('states'),fbRemove('snapshots'),fbRemove('reflected')]);
+  Object.assign(_cache, {issues:{},states:{},snapshots:{},reflected:{}});
   hideLoading();
   updateDBInfo();
   renderActiveIssues();
@@ -1586,9 +1533,31 @@ async function clearDB() {
 //  INIT — Firebase 연결 후 시작
 // ═══════════════════════════════════════════════════════════
 (async () => {
+  // 전역 노출 (module scope → window)
+  window.loadFile           = loadFile;
+  window.dov                = dov;
+  window.dol                = dol;
+  window.dop                = dop;
+  window.runAnalysis        = runAnalysis;
+  window.gotoPanel          = gotoPanel;
+  window.saveSettings       = saveSettings;
+  window.clearDB            = clearDB;
+  window.exportCSV          = exportCSV;
+  window.renderActiveIssues = renderActiveIssues;
+  window.renderHistory      = renderHistory;
+  window.renderInventory    = renderInventory;
+  window.setReflected       = setReflected;
+  window.onUploadDateChange = () => {
+    const d1 = document.getElementById('upload-date-today')?.value||'';
+    const d2 = document.getElementById('upload-date-yest')?.value||'';
+    const l1 = document.getElementById('upload-today-label');
+    const l2 = document.getElementById('upload-yest-label');
+    if(l1) l1.textContent = d1 ? d1+' 기준 파일' : '날짜를 먼저 선택하세요';
+    if(l2) l2.textContent = d2 ? d2+' 비교 파일' : '선택사항';
+  };
+
   await initCache();
 
-  // 설정 로드
   loadSettings();
   updateDBInfo();
   updateNavBadges();
@@ -1597,38 +1566,20 @@ async function clearDB() {
 
   const todayStr = new Date().toISOString().slice(0,10);
   document.getElementById('hist-date').value = todayStr;
-  const uploadDateEl = document.getElementById('upload-date-today');
-  if (uploadDateEl) { uploadDateEl.value = todayStr; onUploadDateChange(); }
+  const uploadEl = document.getElementById('upload-date-today');
+  if(uploadEl) { uploadEl.value=todayStr; window.onUploadDateChange(); }
 
-  // ── 캐시에 오늘 이슈가 있으면 오늘 현황 패널 바로 렌더 ──
-  const todayCache = _cache.issues?.[todayStr] || {};
-  const todayCacheIssues = Object.values(todayCache).filter(i => i && i.barcode);
-  if (todayCacheIssues.length) {
-    renderTodayPanel(todayCacheIssues, new Map(), new Map());
+  // 캐시에 오늘 이슈 있으면 바로 렌더
+  const todayCache = Object.values(_cache.issues?.[todayStr]||{}).filter(i=>i&&i.barcode);
+  if(todayCache.length) {
+    renderTodayPanel(todayCache, new Map(), new Map());
     gotoPanel('today', document.querySelector('[onclick="gotoPanel(\'today\',this)"]'));
     document.getElementById('status-msg').textContent =
-      `☁️ Firebase 동기화 완료 — ${todayStr} 이슈 ${todayCacheIssues.length}건`;
+      `☁️ Firebase 동기화 완료 — ${todayStr} 이슈 ${todayCache.length}건`;
   } else {
     document.getElementById('status-msg').textContent =
       '☁️ Firebase 연결 완료 — 파일을 업로드하여 분석을 시작하세요';
   }
-  // ── HTML onclick/onchange에서 접근 가능하도록 전역 노출 (IIFE 안) ──
-  window.loadFile          = loadFile;
-  window.dov               = dov;
-  window.dol               = dol;
-  window.dop               = dop;
-  window.runAnalysis       = runAnalysis;
-  window.gotoPanel         = gotoPanel;
-  window.saveSettings      = saveSettings;
-  window.clearDB           = clearDB;
-  window.exportCSV         = exportCSV;
-  window.renderActiveIssues= renderActiveIssues;
-  window.renderHistory     = renderHistory;
-  window.renderInventory   = renderInventory;
-  window.onUploadDateChange= onUploadDateChange;
-  window.setReflected      = setReflected;
-  // 디버깅용 캐시 직접 접근
-  window._cache = _cache;
 })();
 </script>
 </body>
