@@ -1155,9 +1155,9 @@ function renderTodayPanel(newIssues, todayMap, yestMap) {
   const lowStock = newIssues.filter(i => i.type === '재고부족발생' || i.type === '재고부족유지').length;
   const codeChg  = newIssues.filter(i => i.type === '아이템코드변경').length;
 
-  document.getElementById('m-total').textContent = todayMap.size;
+  document.getElementById('m-total').textContent = todayMap.size || todayRows.length || '—';
   document.getElementById('m-total-d').textContent = yesterdayRows.length
-    ? `전일 ${yestMap.size}개` : '비교 없음';
+    ? `전일 ${yestMap.size}개` : (todayMap.size ? '비교 없음' : '');
   document.getElementById('m-new').textContent = newProds;
   document.getElementById('m-expiry').textContent = expiring;
   document.getElementById('m-low').textContent = lowStock;
@@ -1597,12 +1597,21 @@ async function clearDB() {
 
   const todayStr = new Date().toISOString().slice(0,10);
   document.getElementById('hist-date').value = todayStr;
-  // 업로드 날짜 기본값 = 오늘
   const uploadDateEl = document.getElementById('upload-date-today');
   if (uploadDateEl) { uploadDateEl.value = todayStr; onUploadDateChange(); }
 
-  document.getElementById('status-msg').textContent =
-    '☁️ Firebase 연결 완료 — 파일을 업로드하여 분석을 시작하세요';
+  // ── 캐시에 오늘 이슈가 있으면 오늘 현황 패널 바로 렌더 ──
+  const todayCache = _cache.issues?.[todayStr] || {};
+  const todayCacheIssues = Object.values(todayCache).filter(i => i && i.barcode);
+  if (todayCacheIssues.length) {
+    renderTodayPanel(todayCacheIssues, new Map(), new Map());
+    gotoPanel('today', document.querySelector('[onclick="gotoPanel(\'today\',this)"]'));
+    document.getElementById('status-msg').textContent =
+      `☁️ Firebase 동기화 완료 — ${todayStr} 이슈 ${todayCacheIssues.length}건`;
+  } else {
+    document.getElementById('status-msg').textContent =
+      '☁️ Firebase 연결 완료 — 파일을 업로드하여 분석을 시작하세요';
+  }
   // ── HTML onclick/onchange에서 접근 가능하도록 전역 노출 (IIFE 안) ──
   window.loadFile          = loadFile;
   window.dov               = dov;
